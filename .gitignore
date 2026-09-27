@@ -1,0 +1,13 @@
+# CMake build output
+/build/
+/mx.scratch/
+
+# Local STM32CubeIDE state
+/.settings/
+/.mxproject
+
+# Keil build output and user-specific state
+/MDK-ARM/robot_arm/
+/MDK-ARM/*.uvoptx
+/MDK-ARM/*.uvguix.*
+/MDK-ARM/*.lst
