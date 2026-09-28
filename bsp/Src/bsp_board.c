@@ -1,76 +1,88 @@
 #include "bsp_board.h"
-
-#include <stddef.h>
+#include "bsp_uart.h"
 
 #include "gpio.h"
+#include "dma.h"
 #include "usart.h"
 
-static BspBoardResult board_uart_result(HAL_StatusTypeDef result)
-{
-    if (result == HAL_OK) {
-        return BSP_BOARD_OK;
-    }
-    if (result == HAL_TIMEOUT) {
-        return BSP_BOARD_TIMEOUT;
-    }
-    return BSP_BOARD_ERROR;
-}
+/* 本工程的普通 .bss 位于 DTCM，DMA1 无法访问；链接脚本将该缓冲区放到 RAM_D2。 */
+__attribute__((section(".dma_buffer"), aligned(32)))
+static uint8_t servo_rx_buffer[32];
+static BspUartManager servo_uart;
 
+/**
+  * @brief  初始化本板 GPIO、DMA、USART3 和舵机串口管理对象。
+  * @note   须在 HAL_Init() 与 SystemClock_Config() 之后调用一次。
+  * @retval 无
+  */
 void Bsp_Board_Init(void)
 {
-    bsp_board_rs485_set_tx(0U);
+    /* DMA 必须先于 USART3 初始化，使 UART 的 DMA 句柄能够完成绑定。 */
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    MX_USART3_UART_Init();
+
+    /* 上电后先保持接收方向，WS2812 数据线保持低电平。 */
+    Bsp_Board_Rs485_Set_Tx(0U);
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
 
+    /* WS2812 的软件时序使用 DWT 周期计数器。 */
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
     DWT->CYCCNT = 0U;
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
+    /* 只绑定已初始化的 huart3；UART 初始化仍由上面的 MX 函数完成。 */
+    if (Bsp_Uart_Attach(&servo_uart, &huart3,
+                        servo_rx_buffer, sizeof(servo_rx_buffer)) != BSP_UART_OK) {
+        Error_Handler();
+    }
 }
 
+/**
+  * @brief  切换 RS485 收发方向。
+  * @param  enabled: 非零为发送，零为接收。
+  * @retval 无
+  */
 void Bsp_Board_Rs485_Set_Tx(uint8_t enabled)
 {
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14,
                       enabled != 0U ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }
 
-BspBoardResult Bsp_Board_UART_Transmit(
-    uint8_t *data, uint16_t length, uint32_t timeout_ms
-)
+/**
+  * @brief  获取板上舵机 UART 的接收管理对象。
+  * @retval 已绑定 huart3 的管理对象指针。
+  */
+BspUartManager *Bsp_Board_ServoUart(void)
 {
-    if (data == NULL || length == 0U) {
-        return BSP_BOARD_ERROR;
-    }
-
-    return board_uart_result(
-        HAL_UART_Transmit(&huart3, data, length, timeout_ms)
-    );
+    return &servo_uart;
 }
 
-BspBoardResult Bsp_Board_UART_Receive(
-    uint8_t *data, uint16_t length, uint32_t timeout_ms
-)
-{
-    if (data == NULL || length == 0U) {
-        return BSP_BOARD_ERROR;
-    }
-
-    return board_uart_result(
-        HAL_UART_Receive(&huart3, data, length, timeout_ms)
-    );
-}
-
+/**
+  * @brief  等待 DWT 计数器经过指定的 CPU 周期数。
+  * @param  start: 起始周期计数值。
+  * @param  cycles: 需要等待的周期数。
+  * @retval 无
+  */
 static void board_wait_cycles(uint32_t start, uint32_t cycles)
 {
     while ((uint32_t)(DWT->CYCCNT - start) < cycles) {
     }
 }
 
+/**
+  * @brief  在 PA7 按 WS2812 时序输出 GRB 字节流。
+  * @param  data: 按 GRB 顺序排列的数据缓冲区。
+  * @param  length: 数据字节数；为零时不发送。
+  * @retval 无
+  */
 void bsp_board_ws2812_send_grb(const uint8_t *data, uint16_t length)
 {
     if (data == NULL || length == 0U) {
         return;
     }
 
-    /* DWT counts core cycles; this project configures the core at 550 MHz. */
+    /* 根据当前 SystemCoreClock 换算 WS2812 脉宽，单位为 CPU 周期。 */
     const uint32_t cycles_per_us = SystemCoreClock / 1000000U;
     const uint32_t zero_high = (cycles_per_us * 3U) / 10U;
     const uint32_t one_high = (cycles_per_us * 7U) / 10U;
@@ -95,6 +107,6 @@ void bsp_board_ws2812_send_grb(const uint8_t *data, uint16_t length)
     GPIOA->BSRR = pin << 16U;
     __set_PRIMASK(primask);
 
-    /* A long low interval latches the frame, including newer WS2812 variants. */
+    /* 帧结束后保持低电平 1 ms，使灯珠锁存本次颜色。 */
     board_wait_cycles(DWT->CYCCNT, cycles_per_us * 1000U);
 }

@@ -2,7 +2,7 @@
 
 ## 项目结构与模块
 
-这是 STM32H723VGTx 的 CubeMX/CMake 固件工程。`robot_arm.ioc` 保存芯片与外设配置；`Core/Src`、`Core/Inc` 放应用入口、中断和 HAL 配置；`bsp/Inc`、`bsp/Src` 放板级接口及实现，`driver/Inc`、`driver/Src` 放舵机和 WS2812 驱动；`Drivers` 是 STM32 HAL 与 CMSIS 代码；`cmake/stm32cubemx` 列出生成的源码。新增模块时，将 `.c` 加入根目录 `CMakeLists.txt` 的 `target_sources()`，并按需加入头文件路径。
+这是 STM32H723VGTx 的 CubeMX/CMake 固件工程。`robot_arm.ioc` 保存芯片与外设配置；`Core/Src`、`Core/Inc` 放应用入口、中断和 HAL 配置；`bsp/Inc`、`bsp/Src` 放板级接口及实现，`driver/Inc`、`driver/Src` 放舵机和 WS2812 驱动；`tests` 放主机端协议测试；`Drivers` 是 STM32 HAL 与 CMSIS 代码。新增模块时，将 `.c` 加入根目录 `CMakeLists.txt` 的 `target_sources()`，并按需加入头文件路径。
 
 ## 构建、测试与开发命令
 
@@ -21,7 +21,7 @@ cmake --build --preset Debug
 
 ## 测试要求
 
-目前没有测试框架、测试目录或覆盖率要求，也没有 `ctest` 测试项。提交前至少完成 Debug 构建并检查编译警告；涉及外设或电机控制时，在对应硬件上验证通信、超时和异常处理，并记录测试条件与结果。
+目前没有测试框架、覆盖率要求或 `ctest` 测试项。`tests/test_ft_servo_protocol.c` 可用主机 GCC 编译运行，检查协议组帧和校验，例如 `gcc -std=c11 -Wall -Wextra -Werror -Idriver/Inc -Ibsp/Inc tests/test_ft_servo_protocol.c driver/Src/ft_servo_protocol.c -o test_ft_servo_protocol.exe`，然后运行生成的程序。提交前至少完成 Debug 构建并检查编译警告。涉及外设或电机控制时，还须在对应硬件上验证通信、超时和异常处理，并记录测试条件与结果。
 
 ## 提交与合并请求
 

@@ -65,6 +65,11 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 
+/**
+  * @brief  逐个 PING 舵机 ID 0～253，并保存有应答的 ID 和状态字节。
+  * @note   结果保存在 servo_found_ids、servo_found_status 和 servo_found_count。
+  * @retval 无
+  */
 static void Servo_ScanIds(void)
 {
     servo_found_count = 0;
@@ -128,11 +133,9 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  bsp_board_init();
+  /* 板级初始化内部依次配置 GPIO、DMA、USART3，并绑定舵机串口管理对象。 */
+  Bsp_Board_Init();
   ws2812_init();
   HAL_Delay(100);
   Servo_ScanIds();

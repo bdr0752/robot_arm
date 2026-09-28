@@ -3,26 +3,17 @@
 
 #include <stdint.h>
 
-typedef enum {
-    BSP_BOARD_OK = 0,
-    BSP_BOARD_TIMEOUT = -1,
-    BSP_BOARD_ERROR = -2
-} BspBoardResult;
+typedef struct BspUartManager BspUartManager;
 
-/* Call after CubeMX GPIO, DMA and USART3 initialization. */
+/* 在 HAL_Init() 和 SystemClock_Config() 之后调用一次，集中初始化板上外设。 */
 void Bsp_Board_Init(void);
 
-/* Nonzero selects transmit; zero selects receive. */
+/* PB14 同时控制 RS485 的 DE 和 RE#：非零为发送，零为接收。 */
 void Bsp_Board_Rs485_Set_Tx(uint8_t enabled);
+/* 返回板上舵机串口的接收管理对象；调用前先执行 Bsp_Board_Init()。 */
+BspUartManager *Bsp_Board_ServoUart(void);
 
-BspBoardResult Bsp_Board_UART_Transmit(
-    uint8_t *data, uint16_t length, uint32_t timeout_ms
-);
-BspBoardResult Bsp_Board_UART_Receive(
-    uint8_t *data, uint16_t length, uint32_t timeout_ms
-);
-
-/* Transmit GRB bytes on the board's WS2812 data pin. */
+/* 在 PA7 输出 WS2812 数据；data 按 GRB 顺序存放。 */
 void bsp_board_ws2812_send_grb(const uint8_t *data, uint16_t length);
 
 #endif

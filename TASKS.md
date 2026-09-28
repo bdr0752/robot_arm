@@ -4,16 +4,19 @@
 
 ## 已完成：代码与配置
 
-- [x] `robot_arm.ioc` 配置 USART3（PD8/PD9）、收发 DMA、RS485 方向脚 PB14，以及 WS2812 数据脚 PA7。
-- [x] CubeMX 生成的 GPIO、DMA、USART3 初始化仍由 `main.c` 调用；`bsp_board_init()` 在其后设置接收方向、拉低 PA7 并启用 DWT 计数器。
-- [x] `bsp_board` 封装本板 UART、RS485 方向脚和 PA7 波形输出；`servo_bus` 不直接引用 HAL。
-- [x] `ft_Servo` 提供 PING 和读取当前位置；`main.c` 的 ID 扫描已改为调用驱动。
+- [x] `robot_arm.ioc` 配置 USART3（PD8/PD9）、收发 DMA、RS485 方向脚 PB14，以及 WS2812 数据脚 PA7；当前驱动使用接收 DMA，发送保持阻塞方式。
+- [x] `main.c` 调用 `Bsp_Board_Init()`；该函数集中初始化 GPIO、DMA、USART3，设置 RS485 接收方向、拉低 PA7 并启用 DWT 计数器。
+- [x] `bsp_uart` 绑定已初始化的 `huart3` 并管理 DMA 空闲接收；`servo_bus` 负责 RS485 方向切换和一次请求、应答交换。
+- [x] USART3 全局中断已启用；接收缓冲区通过链接脚本放在 DMA1 可访问的 RAM_D2。
+- [x] `ft_Servo` 提供 PING、通用寄存器读写、异步写入与执行、同步写入，以及 SMS/STS 位置、速度、扭矩、模式和状态读取接口；`main.c` 的 ID 扫描调用该驱动。
+- [x] `tests/test_ft_servo_protocol.c` 使用假总线检查典型发送帧、应答校验、广播无应答和参数边界。
 - [x] `ws2812` 提供单灯的设置颜色和发送接口，按 GRB 顺序输出。
-- [x] `cmake --preset Debug`、`cmake --build --preset Debug` 构建通过。
+- [x] DMA 迁移版在独立的 `build/BspMigration` Debug 构建目录编译通过。
 
 ## 待验证与后续功能
 
 - [ ] 在目标板验证舵机扫描、ID `0x06` 的 PING 和读取位置，并记录结果。
+- [ ] 在 CubeMX 重新生成代码后核对 `main.c` 的初始化调用、USART3 中断及 `robot_arm.ioc` 的对应设置。
 - [ ] 在目标板验证 WS2812 的 PA7 输出、电平和波形时序；当前代码只做了编译验证。
-- [ ] 实现并验证写目标位置、读取当前电流、通信错误恢复。
-- [ ] 若 CubeMX 重新生成代码，检查 PA7 初始化与 `robot_arm.ioc` 是否保持一致。
+- [ ] 在目标板验证写目标位置、读取当前电流、广播同步写和通信错误恢复。
+- [ ] 如需飞特 SYNC_READ 批量读，需为多帧应答设计接收缓存与解析；当前可逐 ID 调用通用读取接口。

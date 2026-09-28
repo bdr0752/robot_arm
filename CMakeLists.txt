@@ -48,7 +48,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     bsp/Src/bsp_board.c
     bsp/Src/servo_bus.c
     driver/Src/ft_Servo.c
+    driver/Src/ft_servo_protocol.c
     driver/Src/ws2812.c
+    bsp/Src/bsp_uart.c
 )
 
 # Add include paths
