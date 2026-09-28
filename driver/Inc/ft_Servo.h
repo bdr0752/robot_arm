@@ -15,4 +15,8 @@ typedef enum {
 
 FtServoResult ft_servo_ping(uint8_t id, uint8_t *status);
 
+FtServoResult ft_servo_read_position(
+    uint8_t id, uint16_t *position, uint8_t *status
+);
+
 #endif

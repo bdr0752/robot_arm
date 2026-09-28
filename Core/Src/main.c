@@ -24,6 +24,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "bsp_board.h"
+#include "ft_Servo.h"
+#include "ws2812.h"
 
 /* USER CODE END Includes */
 
@@ -62,58 +65,6 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 
 
-/*
- * 返回值：
- *  1：收到指定 ID 的有效应答
- *  0：超时，该 ID 未应答
- * -1：发送失败
- * -2：应答的帧头、ID 或长度错误
- * -3：校验和错误
- *
- * 有效应答中的状态字节通过 status 返回。
- */
-static int Servo_Ping(uint8_t id, uint8_t *status)
-{
-    uint8_t tx[6] = {
-        0xFF, 0xFF, id, 0x02, 0x01, 0x00
-    };
-    uint8_t rx[6] = {0};
-    HAL_StatusTypeDef result;
-
-    tx[5] = (uint8_t)~((uint32_t)id + 0x02U + 0x01U);
-
-    /* PB14 高电平：发送 */
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-    result = HAL_UART_Transmit(&huart3, tx, sizeof(tx), 20);
-
-    /* 发送结束后，PB14 低电平：接收 */
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
-
-    if (result != HAL_OK) {
-        return -1;
-    }
-
-    result = HAL_UART_Receive(&huart3, rx, sizeof(rx), 20);
-    if (result != HAL_OK) {
-        return 0;
-    }
-
-    if (rx[0] != 0xFF || rx[1] != 0xFF ||
-        rx[2] != id   || rx[3] != 0x02) {
-        return -2;
-    }
-
-    uint8_t checksum =
-        (uint8_t)~((uint32_t)rx[2] + rx[3] + rx[4]);
-
-    if (rx[5] != checksum) {
-        return -3;
-    }
-
-    *status = rx[4];
-    return 1;
-}
-
 static void Servo_ScanIds(void)
 {
     servo_found_count = 0;
@@ -122,17 +73,17 @@ static void Servo_ScanIds(void)
 
     for (uint16_t id = 0; id <= 253U; ++id) {
         uint8_t status = 0;
-        int result = Servo_Ping((uint8_t)id, &status);
+        FtServoResult result = ft_servo_ping((uint8_t)id, &status);
 
-        if (result == 1) {
+        if (result == FT_SERVO_OK) {
             servo_found_ids[servo_found_count] = (uint8_t)id;
             servo_found_status[servo_found_count] = status;
             ++servo_found_count;
-        } else if (result == -1) {
+        } else if (result == FT_SERVO_IO_ERROR) {
             /* 串口发送本身失败，停止扫描 */
             servo_scan_error = result;
             break;
-        } else if (result < 0) {
+        } else if (result != FT_SERVO_TIMEOUT) {
             /* 记录最近一次格式或校验错误，继续扫描 */
             servo_scan_error = result;
         }
@@ -181,6 +132,8 @@ int main(void)
   MX_DMA_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
+  bsp_board_init();
+  ws2812_init();
   HAL_Delay(100);
   Servo_ScanIds();
   /* USER CODE END 2 */

@@ -2,7 +2,7 @@
 
 ## 项目结构与模块
 
-这是 STM32H723VGTx 的 CubeMX/CMake 固件工程。`robot_arm.ioc` 保存芯片与外设配置；`Core/Src`、`Core/Inc` 放应用入口、中断和 HAL 配置；`Drivers` 是 STM32 HAL 与 CMSIS 代码；`cmake/stm32cubemx` 列出生成的源码；根目录的启动文件和 `STM32H723xG_flash.ld` 用于启动与链接。新增应用模块时，将 `.c` 加入根目录 `CMakeLists.txt` 的 `target_sources()`，并按需加入头文件路径。
+这是 STM32H723VGTx 的 CubeMX/CMake 固件工程。`robot_arm.ioc` 保存芯片与外设配置；`Core/Src`、`Core/Inc` 放应用入口、中断和 HAL 配置；`bsp/Inc`、`bsp/Src` 放板级接口及实现，`driver/Inc`、`driver/Src` 放舵机和 WS2812 驱动；`Drivers` 是 STM32 HAL 与 CMSIS 代码；`cmake/stm32cubemx` 列出生成的源码。新增模块时，将 `.c` 加入根目录 `CMakeLists.txt` 的 `target_sources()`，并按需加入头文件路径。
 
 ## 构建、测试与开发命令
 

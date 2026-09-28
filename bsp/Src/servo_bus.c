@@ -1,15 +1,16 @@
 #include "servo_bus.h"
-#include "gpio.h"
-#include "usart.h"
+#include "bsp_board.h"
+
+#include <stddef.h>
 
 #define SERVO_UART_TIMEOUT_MS 20U
 
-static ServoBusResult bus_result(HAL_StatusTypeDef result)
+static ServoBusResult bus_result(BspBoardResult result)
 {
-    if (result == HAL_OK) {
+    if (result == BSP_BOARD_OK) {
         return SERVO_BUS_OK;
     }
-    if (result == HAL_TIMEOUT) {
+    if (result == BSP_BOARD_TIMEOUT) {
         return SERVO_BUS_TIMEOUT;
     }
     return SERVO_BUS_ERROR;
@@ -21,13 +22,13 @@ ServoBusResult servo_bus_send(uint8_t *data, uint16_t length)
         return SERVO_BUS_ERROR;
     }
 
-    /* PB14 同时连接 DE 与 RE#：高电平发送 */
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-    HAL_StatusTypeDef result =
-        HAL_UART_Transmit(&huart3, data, length, SERVO_UART_TIMEOUT_MS);
+    /* Select the board's transmit direction. */
+    bsp_board_rs485_set_tx(1U);
+    BspBoardResult result =
+        bsp_board_servo_uart_send(data, length, SERVO_UART_TIMEOUT_MS);
 
-    /* 无论发送结果如何，都切回接收方向 */
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+    /* Always restore the board's receive direction. */
+    bsp_board_rs485_set_tx(0U);
     return bus_result(result);
 }
 
@@ -38,6 +39,6 @@ ServoBusResult servo_bus_receive(uint8_t *data, uint16_t length)
     }
 
     return bus_result(
-        HAL_UART_Receive(&huart3, data, length, SERVO_UART_TIMEOUT_MS)
+        bsp_board_servo_uart_receive(data, length, SERVO_UART_TIMEOUT_MS)
     );
 }
