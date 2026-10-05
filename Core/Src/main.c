@@ -22,7 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bsp_board.h"
-#include "ft_servo_protocol.h"
+#include "ft_Servo.h"
 #include "stm32h7xx_hal.h"
 #include "ws2812.h"
 
@@ -119,7 +119,7 @@ int main(void)
   const uint8_t servo_id = 0x06U;
   
   uint8_t status = 0;
-  uint8_t mode = 0;
+  uint8_t mode = 1;
   uint16_t model = 0;
   uint16_t position = 0;
   
@@ -152,7 +152,7 @@ int main(void)
   r_ping = ft_servo_ping(servo_id, &status);
   r_model = ft_servo_read_word(
       servo_id, FT_SMS_REG_MODEL_L, &model, &status);
-  r_mode = ft_servo_read_mode(servo_id, &mode, &status);
+  r_mode = ft_servo_set_mode(servo_id, FT_SMS_MODE_WHEEL, &status);
   r_position = ft_servo_read_position(
       servo_id, &position, &status);
 	  
@@ -167,9 +167,8 @@ int main(void)
 //  FtServoResult hold_result = FT_SERVO_OK;
   
   
-  min_angle_result = ft_servo_write_position(servo_id, 0, 100, 100,&min_status);
-  HAL_Delay(10000);
-  max_angle_result = ft_servo_write_position(servo_id, 2024, 100,100, &max_status);
+  Ft_SetPosition(servo_id,2048,5,5);
+  
   /* USER CODE END 2 */
 
   /* Infinite loop */

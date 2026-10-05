@@ -2,7 +2,7 @@
 #define FT_SERVO_H
 
 #include "ft_servo_types.h"
-
+#include "ft_servo_protocol.h"
 /*
  * 按实际舵机标定两个端点。位置值是舵机寄存器原始值，不是角度。
  * 两个位置端点可以递增或递减，以适配安装方向。
@@ -25,5 +25,9 @@ FtServoResult ft_servo_motion_read_angle(const FtServoMotionConfig *config,
 FtServoResult ft_servo_motion_move_by_angle(const FtServoMotionConfig *config,
                                             float delta_deg, uint16_t speed,
                                             uint8_t acceleration, uint8_t *status);
-
+uint8_t Ft_SetSpeed(uint8_t id, int16_t speed,
+                    uint8_t acceleration);
+											
+uint8_t Ft_SetPosition(uint8_t id, int16_t position,
+                      int16_t speed, uint8_t acceleration);
 #endif
