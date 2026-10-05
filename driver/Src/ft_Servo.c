@@ -1,59 +1,98 @@
 #include "ft_Servo.h"
-#include "servo_bus.h"
-#include "ft_servo_defs.h"
+#include "ft_servo_protocol.h"
 
+#include <float.h>
+#include <stddef.h>
 
 /**
-  * @brief  向指定 ID 发送 PING，并验证应答帧。
-  * @param  id: 舵机 ID，范围 0～253。
-  * @param  status: 成功时写入应答中的状态字节。
-  * @retval FT_SERVO_OK、超时、收发错误、应答格式错误、校验错误或参数错误。
+  * @brief  检查角度与位置端点配置是否可用于线性换算。
+  * @param  config: 舵机 ID 和两个标定端点。
+  * @retval 1 表示有效，0 表示无效。
   */
-FtServoResult ft_servo_ping(uint8_t id, uint8_t *status)
+static uint8_t motion_config_valid(const FtServoMotionConfig *config)
 {
-    if (id > 253U || status == NULL) {
+    return config != NULL && config->id <= 253U &&
+           config->min_angle_deg >= -FLT_MAX &&
+           config->max_angle_deg <= FLT_MAX &&
+           config->min_angle_deg < config->max_angle_deg &&
+           config->position_at_min_angle <= INT16_MAX &&
+           config->position_at_max_angle <= INT16_MAX &&
+           config->position_at_min_angle != config->position_at_max_angle;
+}
+
+/**
+  * @brief  根据标定端点将目标角度换算为目标位置并发送。
+  * @param  config: 舵机 ID 和角度、位置端点。
+  * @param  angle_deg: 目标角度，须在配置的角度区间内。
+  * @param  speed: 舵机目标速度寄存器原始值。
+  * @param  acceleration: 舵机加速度寄存器原始值。
+  * @param  status: 非 NULL 时写入舵机应答状态字节。
+  * @retval FT_SERVO_OK、参数错误或底层通信错误。
+  */
+FtServoResult ft_servo_motion_goto_angle(const FtServoMotionConfig *config,
+                                         float angle_deg, uint16_t speed,
+                                         uint8_t acceleration, uint8_t *status)
+{
+    if (!motion_config_valid(config) ||
+        !(angle_deg >= config->min_angle_deg && angle_deg <= config->max_angle_deg)) {
         return FT_SERVO_BAD_ARGUMENT;
     }
 
-    uint8_t tx[6] = {0xFF, 0xFF, id, 0x02, FT_SCS_INST_PING, 0x00};
-    uint8_t rx[6] = {0};
+    float ratio = (angle_deg - config->min_angle_deg) /
+                  (config->max_angle_deg - config->min_angle_deg);
+    float raw = (float)config->position_at_min_angle + ratio *
+                ((float)config->position_at_max_angle -
+                 (float)config->position_at_min_angle);
+    /* 端点限制已保证结果非负；加 0.5 后截断得到最近的整数位置。 */
+    uint16_t position = (uint16_t)(raw + 0.5f);
+    return ft_servo_write_position(config->id, (int16_t)position,
+                                   speed, acceleration, status);
+}
 
-    tx[5] = (uint8_t)~((uint32_t)id + tx[3] + tx[4]);
-
-    ServoBusResult bus = servo_bus_exchange(tx, sizeof(tx), rx, sizeof(rx));
-    if (bus != SERVO_BUS_OK) {
-        if (bus == SERVO_BUS_LENGTH) {
-            return FT_SERVO_BAD_REPLY;
-        }
-        return (bus == SERVO_BUS_TIMEOUT)
-            ? FT_SERVO_TIMEOUT : FT_SERVO_IO_ERROR;
+/**
+  * @brief  读取原始位置并按标定端点换算为角度。
+  * @param  config: 舵机 ID 和角度、位置端点。
+  * @param  angle_deg: 成功时写入当前角度；越过标定端点时会线性外推。
+  * @param  status: 非 NULL 时写入舵机应答状态字节。
+  * @retval FT_SERVO_OK、参数错误或底层通信错误。
+  */
+FtServoResult ft_servo_motion_read_angle(const FtServoMotionConfig *config,
+                                         float *angle_deg, uint8_t *status)
+{
+    if (!motion_config_valid(config) || angle_deg == NULL) {
+        return FT_SERVO_BAD_ARGUMENT;
     }
-
-    if (rx[0] != 0xFFU || rx[1] != 0xFFU ||
-        rx[2] != id    || rx[3] != 0x02U) {
-        return FT_SERVO_BAD_REPLY;
+    uint16_t position;
+    FtServoResult result = ft_servo_read_position(config->id, &position, status);
+    if (result != FT_SERVO_OK) {
+        return result;
     }
-
-    uint8_t checksum =
-        (uint8_t)~((uint32_t)rx[2] + rx[3] + rx[4]);
-
-    if (rx[5] != checksum) {
-        return FT_SERVO_BAD_CHECKSUM;
-    }
-
-    *status = rx[4];
+    float ratio = ((float)position - (float)config->position_at_min_angle) /
+                  ((float)config->position_at_max_angle -
+                   (float)config->position_at_min_angle);
+    *angle_deg = config->min_angle_deg +
+                 ratio * (config->max_angle_deg - config->min_angle_deg);
     return FT_SERVO_OK;
 }
+
 /**
-  * @brief  读取指定舵机的当前位置寄存器，并验证应答帧。
-  * @param  id: 舵机 ID，范围 0～253。
-  * @param  position: 成功时写入位置寄存器的原始数值。
-  * @param  status: 非 NULL 时在成功后写入应答状态字节。
-  * @retval FT_SERVO_OK、超时、收发错误、应答格式错误、校验错误或参数错误。
+  * @brief  以当前反馈位置为起点，相对转动指定角度。
+  * @param  config: 舵机 ID 和角度、位置端点。
+  * @param  delta_deg: 相对角度，正负方向由标定端点决定。
+  * @param  speed: 舵机目标速度寄存器原始值。
+  * @param  acceleration: 舵机加速度寄存器原始值。
+  * @param  status: 非 NULL 时写入最后一次写位置的应答状态字节。
+  * @retval FT_SERVO_OK、目标越界、读取失败或写入失败。
   */
-FtServoResult ft_servo_read_position(
-    uint8_t id, uint16_t *position, uint8_t *status
-)
+FtServoResult ft_servo_motion_move_by_angle(const FtServoMotionConfig *config,
+                                            float delta_deg, uint16_t speed,
+                                            uint8_t acceleration, uint8_t *status)
 {
-    return ft_servo_read_word(id, FT_SMS_REG_PRESENT_POS_L, position, status);
+    float current_angle;
+    FtServoResult result = ft_servo_motion_read_angle(config, &current_angle, NULL);
+    if (result != FT_SERVO_OK) {
+        return result;
+    }
+    return ft_servo_motion_goto_angle(config, current_angle + delta_deg,
+                                      speed, acceleration, status);
 }

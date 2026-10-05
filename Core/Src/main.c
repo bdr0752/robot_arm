@@ -18,14 +18,12 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "dma.h"
-#include "usart.h"
-#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bsp_board.h"
-#include "ft_Servo.h"
+#include "ft_servo_protocol.h"
+#include "stm32h7xx_hal.h"
 #include "ws2812.h"
 
 /* USER CODE END Includes */
@@ -48,11 +46,24 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile uint8_t servo_found_ids[254];
-volatile uint8_t servo_found_status[254];
-volatile uint16_t servo_found_count = 0;
-volatile int servo_scan_done = 0;
-volatile int servo_scan_error = 0;
+/* 保存通信结果，供调试器观察。 */
+static volatile FtServoResult r_ping;
+static volatile FtServoResult r_model;
+static volatile FtServoResult r_mode;
+static volatile FtServoResult r_position;
+static volatile FtServoResult r_torque;
+static volatile FtServoResult r_min;
+static volatile FtServoResult r_max;
+
+static volatile FtServoResult min_angle_result;
+static volatile FtServoResult max_angle_result;
+
+/* 调试器中改为 1：执行一次保持位置测试。 */
+static volatile uint8_t hold_request = 0U;
+static volatile uint8_t hold_step = 0U;
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,40 +74,6 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-
-/**
-  * @brief  逐个 PING 舵机 ID 0～253，并保存有应答的 ID 和状态字节。
-  * @note   结果保存在 servo_found_ids、servo_found_status 和 servo_found_count。
-  * @retval 无
-  */
-static void Servo_ScanIds(void)
-{
-    servo_found_count = 0;
-    servo_scan_done = 0;
-    servo_scan_error = 0;
-
-    for (uint16_t id = 0; id <= 253U; ++id) {
-        uint8_t status = 0;
-        FtServoResult result = ft_servo_ping((uint8_t)id, &status);
-
-        if (result == FT_SERVO_OK) {
-            servo_found_ids[servo_found_count] = (uint8_t)id;
-            servo_found_status[servo_found_count] = status;
-            ++servo_found_count;
-        } else if (result == FT_SERVO_IO_ERROR) {
-            /* 串口发送本身失败，停止扫描 */
-            servo_scan_error = result;
-            break;
-        } else if (result != FT_SERVO_TIMEOUT) {
-            /* 记录最近一次格式或校验错误，继续扫描 */
-            servo_scan_error = result;
-        }
-    }
-
-    servo_scan_done = 1;
-}
-
 
 /* USER CODE END 0 */
 
@@ -138,7 +115,61 @@ int main(void)
   Bsp_Board_Init();
   ws2812_init();
   HAL_Delay(100);
-  Servo_ScanIds();
+  /* 与刚刚 PING 成功时使用的 ID 保持一致。 */
+  const uint8_t servo_id = 0x06U;
+  
+  uint8_t status = 0;
+  uint8_t mode = 0;
+  uint16_t model = 0;
+  uint16_t position = 0;
+  
+  uint8_t torque_enabled = 0xFFU;
+  uint16_t min_position = 0U;
+  uint16_t max_position = 0U;
+  
+  uint8_t torque_status = 0xFFU;
+  uint8_t min_status = 0xFFU;
+  uint8_t max_status = 0xFFU;
+  
+  /* 读取扭矩使能状态，不改变它。 */
+  r_torque = ft_servo_read_byte(
+  	servo_id, FT_SMS_REG_TORQUE_ENABLE,
+  	&torque_enabled, &torque_status);
+  
+  /* 读取舵机配置的位置下限。 */
+  r_min = ft_servo_read_word(
+  	servo_id, FT_SMS_REG_MIN_ANGLE_L,
+  	&min_position, &min_status);
+  
+  /* 读取舵机配置的位置上限。 */
+  r_max = ft_servo_read_word(
+		servo_id, FT_SMS_REG_MAX_ANGLE_L,
+		&max_position, &max_status);
+
+  
+
+
+  r_ping = ft_servo_ping(servo_id, &status);
+  r_model = ft_servo_read_word(
+      servo_id, FT_SMS_REG_MODEL_L, &model, &status);
+  r_mode = ft_servo_read_mode(servo_id, &mode, &status);
+  r_position = ft_servo_read_position(
+      servo_id, &position, &status);
+	  
+  /* 测试结果，供调试器观察。 */
+
+//  uint16_t hold_target = 0U;
+//  uint16_t hold_goal_readback = 0U;
+//  uint16_t hold_feedback = 0U;
+//  uint8_t hold_mode = 0xFFU;
+//  uint8_t hold_torque = 0xFFU;
+//  uint8_t hold_status = 0xFFU;
+//  FtServoResult hold_result = FT_SERVO_OK;
+  
+  
+  min_angle_result = ft_servo_write_position(servo_id, 0, 100, 100,&min_status);
+  HAL_Delay(10000);
+  max_angle_result = ft_servo_write_position(servo_id, 2024, 100,100, &max_status);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -148,8 +179,91 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+// 	  if (hold_request == 1U) {
+//     /* 清除请求，本次只执行一次。 */
+//     hold_request = 0U;
+
+//     do {
+//         /* 第一步：确认仍是位置模式。 */
+//         hold_step = 1U;
+//         hold_result = ft_servo_read_mode(
+//             servo_id, &hold_mode, &hold_status);
+//         if (hold_result != FT_SERVO_OK ||
+//             hold_status != 0U ||
+//             hold_mode != FT_SMS_MODE_POSITION) {
+//             break;
+//         }
+
+//         /* 第二步：读取最新位置作为目标。 */
+//         hold_step = 2U;
+//         hold_result = ft_servo_read_position(
+//             servo_id, &hold_target, &hold_status);
+//         if (hold_result != FT_SERVO_OK || hold_status != 0U) {
+//             break;
+//         }
+
+//         /* 确认此前读取的上下限有效，且当前位置在其中。 */
+//         if (r_min != FT_SERVO_OK || r_max != FT_SERVO_OK ||
+//             min_status != 0U || max_status != 0U ||
+//             min_position > max_position ||
+//             hold_target < min_position ||
+//             hold_target > max_position) {
+//             break;
+//         }
+
+//         /* 第三步：只写目标位置寄存器。 */
+//         hold_step = 3U;
+//         hold_result = ft_servo_write_word(
+//             servo_id, FT_SMS_REG_GOAL_POS_L,
+//             hold_target, &hold_status);
+//         if (hold_result != FT_SERVO_OK || hold_status != 0U) {
+//             break;
+//         }
+
+//         /* 第四步：读回目标，确认写入生效。 */
+//         hold_step = 4U;
+//         hold_result = ft_servo_read_word(
+//             servo_id, FT_SMS_REG_GOAL_POS_L,
+//             &hold_goal_readback, &hold_status);
+//         if (hold_result != FT_SERVO_OK ||
+//             hold_status != 0U ||
+//             hold_goal_readback != hold_target) {
+//             break;
+//         }
+
+//         /* 第五步：开启扭矩，保持刚设置的位置。 */
+//         hold_step = 5U;
+//         hold_result = ft_servo_set_torque(
+//             servo_id, 1U, &hold_status);
+//         if (hold_result != FT_SERVO_OK || hold_status != 0U) {
+//             break;
+//         }
+
+//         /* 第六步：确认扭矩使能值为 1。 */
+//         hold_step = 6U;
+//         hold_result = ft_servo_read_byte(
+//             servo_id, FT_SMS_REG_TORQUE_ENABLE,
+//             &hold_torque, &hold_status);
+//         if (hold_result != FT_SERVO_OK ||
+//             hold_status != 0U || hold_torque != 1U) {
+//             break;
+//         }
+
+//         /* 第七步：等待后采样位置反馈。 */
+//         hold_step = 7U;
+//         HAL_Delay(500);
+//         hold_result = ft_servo_read_position(
+//             servo_id, &hold_feedback, &hold_status);
+//         if (hold_result != FT_SERVO_OK || hold_status != 0U) {
+//             break;
+//         }
+
+//         hold_step = 8U;  /* 本轮测试完成。 */
+//     } while (0);
+// }
   }
-  /* USER CODE END 3 */
+  
+/* USER CODE END 3 */
 }
 
 /**

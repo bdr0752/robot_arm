@@ -1,8 +1,12 @@
 # Repository Guidelines
 
+## 协作要求
+
+始终使用简体中文，表达直接、严谨。先核对现有文件、配置和官方资料；区分已确认事实、建议、假设与待验证项。不猜测器件型号、寄存器含义、引脚、尺寸或单位。不要使用恭维或夸张措辞。用户要求自行操作时，只提供步骤，不修改文件。
+
 ## 项目结构与模块
 
-这是 STM32H723VGTx 的 CubeMX/CMake 固件工程。`robot_arm.ioc` 保存芯片与外设配置；`Core/Src`、`Core/Inc` 放应用入口、中断和 HAL 配置；`bsp/Inc`、`bsp/Src` 放板级接口及实现，`driver/Inc`、`driver/Src` 放舵机和 WS2812 驱动；`tests` 放主机端协议测试；`Drivers` 是 STM32 HAL 与 CMSIS 代码。新增模块时，将 `.c` 加入根目录 `CMakeLists.txt` 的 `target_sources()`，并按需加入头文件路径。
+这是 STM32H723VGTx 的 CubeMX/CMake 固件工程。`robot_arm.ioc` 保存外设配置；`Core` 放应用入口与生成代码；`bsp` 中 `bsp_board` 集中初始化外设，`bsp_uart` 绑定已初始化的 UART 并管理 DMA 接收，`servo_bus` 管理 RS485 收发；`driver` 中 `ft_servo_protocol` 处理协议及寄存器原始值，`ft_Servo` 处理角度换算，另有 WS2812 驱动；`tests` 放主机端测试。新增 `.c` 时更新根目录 `CMakeLists.txt`。
 
 ## 构建、测试与开发命令
 
@@ -17,11 +21,11 @@ cmake --build --preset Debug
 
 ## 代码风格与命名
 
-使用 C11，与现有 CubeMX 生成代码保持一致。应用代码放在 `/* USER CODE BEGIN ... */` 与对应 `END` 之间，避免重新生成时丢失。函数和变量沿用现有模块风格；新模块使用清晰的领域前缀，例如 `servo_read_position()`。寄存器地址、单位和串口参数须依据实际器件资料，不要猜测。
+使用 C11。CubeMX 生成文件中的手写代码放在 `/* USER CODE BEGIN ... */` 区域，避免重新生成时丢失。沿用模块前缀，例如 `ft_servo_read_position()`、`Bsp_Uart_Attach()`；自写函数在定义前使用 `@brief`、`@param`、`@retval` 说明作用与行为。寄存器地址、单位和串口参数须依据实际器件资料。
 
 ## 测试要求
 
-目前没有测试框架、覆盖率要求或 `ctest` 测试项。`tests/test_ft_servo_protocol.c` 可用主机 GCC 编译运行，检查协议组帧和校验，例如 `gcc -std=c11 -Wall -Wextra -Werror -Idriver/Inc -Ibsp/Inc tests/test_ft_servo_protocol.c driver/Src/ft_servo_protocol.c -o test_ft_servo_protocol.exe`，然后运行生成的程序。提交前至少完成 Debug 构建并检查编译警告。涉及外设或电机控制时，还须在对应硬件上验证通信、超时和异常处理，并记录测试条件与结果。
+目前没有测试框架、覆盖率要求或 `ctest` 测试项。`tests/test_ft_servo_protocol.c` 检查组帧与校验；`tests/test_ft_servo_motion.c` 检查角度换算，两者可用主机 GCC 分别运行。提交前至少完成 Debug 构建并检查警告。编译和主机测试不代表硬件已验证；运动测试不得默认在上电时自动执行，须先确认型号、行程、负载与停止办法，并记录通信、超时和异常结果。
 
 ## 提交与合并请求
 

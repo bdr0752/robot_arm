@@ -21,6 +21,9 @@
 #define FT_SMS_REG_CCW_DEAD       0x1BU
 #define FT_SMS_REG_OFFSET_L       0x1FU
 #define FT_SMS_REG_MODE           0x21U
+/* 飞特 SMS/STS 应用层例程的模式寄存器取值。 */
+#define FT_SMS_MODE_POSITION      0x00U
+#define FT_SMS_MODE_WHEEL         0x01U
 #define FT_SMS_REG_TORQUE_ENABLE  0x28U
 #define FT_SMS_REG_ACC            0x29U
 #define FT_SMS_REG_GOAL_POS_L     0x2AU

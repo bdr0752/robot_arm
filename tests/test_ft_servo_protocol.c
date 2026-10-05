@@ -1,4 +1,4 @@
-#include "ft_Servo.h"
+#include "ft_servo_protocol.h"
 #include "ft_servo_defs.h"
 #include "servo_bus.h"
 

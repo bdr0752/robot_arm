@@ -1,5 +1,5 @@
-#include "ft_Servo.h"
-#include "ft_servo_defs.h"
+#include "ft_servo_protocol.h"
+
 #include "servo_bus.h"
 
 #include <string.h>
@@ -255,7 +255,7 @@ FtServoResult ft_servo_read_byte(uint8_t id, uint8_t address,
   * @param  status: 非 NULL 时写入应答状态字节。
   * @retval 操作结果。
   */
-FtServoResult                      ft_servo_read_word(uint8_t id, uint8_t address,
+FtServoResult ft_servo_read_word(uint8_t id, uint8_t address,
                                  uint16_t *value, uint8_t *status)
 {
     if (value == NULL) {
@@ -323,6 +323,18 @@ FtServoResult ft_servo_set_torque(uint8_t id, uint8_t enabled, uint8_t *status)
 FtServoResult ft_servo_set_mode(uint8_t id, uint8_t mode, uint8_t *status)
 {
     return ft_servo_write_byte(id, FT_SMS_REG_MODE, mode, status);
+}
+
+/**
+  * @brief  读取 SMS/STS 当前工作模式寄存器。
+  * @param  id: 单播舵机 ID。
+  * @param  mode: 成功时写入模式寄存器原始值。
+  * @param  status: 非 NULL 时写入应答状态字节。
+  * @retval 操作结果。
+  */
+FtServoResult ft_servo_read_mode(uint8_t id, uint8_t *mode, uint8_t *status)
+{
+    return ft_servo_read_byte(id, FT_SMS_REG_MODE, mode, status);
 }
 
 /**
@@ -598,4 +610,38 @@ FtServoResult ft_servo_read_temperature(uint8_t id, uint8_t *temperature, uint8_
 FtServoResult ft_servo_read_moving(uint8_t id, uint8_t *moving, uint8_t *status)
 {
     return ft_servo_read_byte(id, FT_SMS_REG_MOVING, moving, status);
+}
+
+/**
+  * @brief  向指定 ID 发送 PING，并验证应答帧。
+  * @param  id: 舵机 ID，范围 0～253。
+  * @param  status: 成功时写入应答中的状态字节。
+  * @retval FT_SERVO_OK、超时、收发错误、应答格式错误、校验错误或参数错误。
+  */
+FtServoResult ft_servo_ping(uint8_t id, uint8_t *status)
+{
+    if (id > 253U || status == NULL) {
+        return FT_SERVO_BAD_ARGUMENT;
+    }
+
+    uint8_t tx[6] = {0xFFU, 0xFFU, id, 0x02U, FT_SCS_INST_PING, 0U};
+    uint8_t rx[6];
+    tx[5] = frame_checksum(&tx[2], 3U);
+    ServoBusResult bus = servo_bus_exchange(tx, sizeof(tx), rx, sizeof(rx));
+    if (bus != SERVO_BUS_OK) {
+        return map_bus_result(bus);
+    }
+    return check_reply(id, rx, 0U, status);
+}
+
+/**
+  * @brief  读取指定舵机当前位置寄存器的 16 位原始值。
+  * @param  id: 舵机 ID，范围 0～253。
+  * @param  position: 成功时写入原始位置值。
+  * @param  status: 非 NULL 时在成功后写入应答状态字节。
+  * @retval 操作结果。
+  */
+FtServoResult ft_servo_read_position(uint8_t id, uint16_t *position, uint8_t *status)
+{
+    return ft_servo_read_word(id, FT_SMS_REG_PRESENT_POS_L, position, status);
 }

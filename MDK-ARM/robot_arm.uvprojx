@@ -314,7 +314,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>4</Optim>
+            <Optim>1</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_PWR_LDO_SUPPLY,USE_HAL_DRIVER,STM32H723xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32H7xx_HAL_Driver/Inc;../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32H7xx/Include;../Drivers/CMSIS/Include</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32H7xx_HAL_Driver/Inc;../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32H7xx/Include;../Drivers/CMSIS/Include;../bsp/Inc;../driver/Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -542,6 +542,86 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>bsp</GroupName>
+          <Files>
+            <File>
+              <FileName>bsp_board.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\bsp\Src\bsp_board.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\bsp\Src\bsp_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>servo_bus.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\bsp\Src\servo_bus.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_board.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\bsp\Inc\bsp_board.h</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_uart.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\bsp\Inc\bsp_uart.h</FilePath>
+            </File>
+            <File>
+              <FileName>servo_bus.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\bsp\Inc\servo_bus.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>driver</GroupName>
+          <Files>
+            <File>
+              <FileName>ft_Servo.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\driver\Inc\ft_Servo.h</FilePath>
+            </File>
+            <File>
+              <FileName>ft_servo_defs.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\driver\Inc\ft_servo_defs.h</FilePath>
+            </File>
+            <File>
+              <FileName>ft_servo_protocol.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\driver\Inc\ft_servo_protocol.h</FilePath>
+            </File>
+            <File>
+              <FileName>ft_servo_types.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\driver\Inc\ft_servo_types.h</FilePath>
+            </File>
+            <File>
+              <FileName>ws2812.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\driver\Inc\ws2812.h</FilePath>
+            </File>
+            <File>
+              <FileName>ft_Servo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\driver\Src\ft_Servo.c</FilePath>
+            </File>
+            <File>
+              <FileName>ft_servo_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\driver\Src\ft_servo_protocol.c</FilePath>
+            </File>
+            <File>
+              <FileName>ws2812.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\driver\Src\ws2812.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>
@@ -560,5 +640,14 @@
     </components>
     <files/>
   </RTE>
+
+  <LayerInfo>
+    <Layers>
+      <Layer>
+        <LayName>robot_arm</LayName>
+        <LayPrjMark>1</LayPrjMark>
+      </Layer>
+    </Layers>
+  </LayerInfo>
 
 </Project>
