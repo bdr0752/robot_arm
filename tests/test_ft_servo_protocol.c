@@ -34,6 +34,7 @@ static void expect_exchange(const uint8_t *tx, uint16_t tx_length,
     reply = rx;
     reply_length = rx_length;
     call_count = 0U;
+
 }
 
 int main(void)
@@ -98,7 +99,47 @@ int main(void)
     assert(ft_servo_sync_write_position(commands, 2U) == FT_SERVO_OK);
     assert(call_count == 1U);
 
+    const uint8_t pwm_forward[] = {
+        0xFF, 0xFF, 0x06, 0x05, 0x03, 0x2C, 0xE8, 0x03, 0xDA
+    };
+    expect_exchange(pwm_forward, sizeof(pwm_forward), ack, sizeof(ack));
+    assert(ft_servo_write_pwm(6U, 1000, &status) == FT_SERVO_OK);
+    assert(call_count == 1U && status == 0U);
+
+    const uint8_t pwm_reverse[] = {
+        0xFF, 0xFF, 0x06, 0x05, 0x03, 0x2C, 0xE8, 0x07, 0xD6
+    };
+    expect_exchange(pwm_reverse, sizeof(pwm_reverse), ack, sizeof(ack));
+    assert(ft_servo_write_pwm(6U, -1000, &status) == FT_SERVO_OK);
+    assert(call_count == 1U);
+
+    const uint8_t pwm_zero[] = {
+        0xFF, 0xFF, 0x06, 0x05, 0x03, 0x2C, 0x00, 0x00, 0xC5
+    };
+    expect_exchange(pwm_zero, sizeof(pwm_zero), ack, sizeof(ack));
+    assert(ft_servo_write_pwm(6U, 0, &status) == FT_SERVO_OK);
+
+    const uint8_t pwm_deferred[] = {
+        0xFF, 0xFF, 0x06, 0x05, 0x04, 0x2C, 0xE8, 0x07, 0xD5
+    };
+    expect_exchange(pwm_deferred, sizeof(pwm_deferred), ack, sizeof(ack));
+    assert(ft_servo_reg_write_pwm(6U, -1000, &status) == FT_SERVO_OK);
+
+    const FtServoPwmCommand pwm_commands[] = {{2U, 1000}, {6U, -1000}};
+    const uint8_t pwm_sync[] = {
+        0xFF, 0xFF, 0xFE, 0x0A, 0x83, 0x2C, 0x02,
+        0x02, 0xE8, 0x03, 0x06, 0xE8, 0x07, 0x64
+    };
+    expect_exchange(pwm_sync, sizeof(pwm_sync), NULL, 0U);
+    assert(ft_servo_sync_write_pwm(pwm_commands, 2U) == FT_SERVO_OK);
+    assert(call_count == 1U);
+
     call_count = 0U;
+    assert(ft_servo_write_pwm(6U, 1001, &status) == FT_SERVO_BAD_ARGUMENT);
+    assert(ft_servo_write_pwm(6U, -1001, &status) == FT_SERVO_BAD_ARGUMENT);
+    assert(ft_servo_write_pwm(6U, INT16_MIN, &status) == FT_SERVO_BAD_ARGUMENT);
+    assert(ft_servo_sync_write_pwm(NULL, 2U) == FT_SERVO_BAD_ARGUMENT);
+    assert(ft_servo_sync_write_pwm(pwm_commands, 84U) == FT_SERVO_BAD_ARGUMENT);
     assert(ft_servo_read(0xFE, 0x38, (uint8_t *)&value, 2U, &status)
            == FT_SERVO_BAD_ARGUMENT);
     assert(ft_servo_write_position(0x06, INT16_MIN, 20U, 10U, &status)

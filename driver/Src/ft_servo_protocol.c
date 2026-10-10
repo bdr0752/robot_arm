@@ -8,6 +8,9 @@
 #define FT_SERVO_MAX_WRITE_BYTES 252U
 #define FT_SERVO_MAX_FRAME_BYTES 259U
 
+static FtServoResult sync_write_same_byte(const uint8_t *ids, uint8_t count,
+                                          uint8_t address, uint8_t value);
+
 /**
   * @brief  将总线层错误转换成舵机驱动结果。
   * @param  result: 总线层返回值。
@@ -234,6 +237,68 @@ FtServoResult ft_servo_sync_write(const uint8_t *ids, uint8_t count,
 }
 
 /**
+  * @brief  逐台读取相同 EEPROM 寄存器区间并保留各台通信结果。
+  * @param  ids: ID 数组，每个 ID 范围为 0～253。
+  * @param  count: 舵机数量，范围为 1～125。
+  * @param  address: EEPROM 起始地址，由调用者按实际型号确认。
+  * @param  data: 输出缓冲区，至少 count * length 字节，按 ID 顺序排列。
+  * @param  length: 每台读取字节数，范围为 1～FT_SERVO_MAX_READ_BYTES。
+  * @param  results: 各台通信结果，至少 count 项。
+  * @param  statuses: 各台应答状态，至少 count 项；未取得有效应答为 0xFF。
+  * @retval 所有通信成功返回 FT_SERVO_OK，否则返回首个通信错误。
+  * @note   单台失败后继续读取其他 ID；有效性须同时检查 results 和 statuses。
+  *         通信失败项的数据不更新；参数错误时所有输出保持不变。
+  *         此接口不校验型号相关的 EEPROM 地址范围。
+  */
+FtServoResult ft_servo_eeprom_read_batch(const uint8_t *ids, uint8_t count,
+                                         uint8_t address, uint8_t *data,
+                                         uint8_t length, FtServoResult *results,
+                                         uint8_t *statuses)
+{
+    if (ids == NULL || data == NULL || results == NULL || statuses == NULL ||
+        count == 0U || count > 125U || length == 0U ||
+        length > FT_SERVO_MAX_READ_BYTES ||
+        (uint16_t)address + length > 256U) {
+        return FT_SERVO_BAD_ARGUMENT;
+    }
+    for (uint8_t i = 0U; i < count; ++i) {
+        if (ids[i] > 253U) {
+            return FT_SERVO_BAD_ARGUMENT;
+        }
+    }
+
+    FtServoResult first_error = FT_SERVO_OK;
+    for (uint8_t i = 0U; i < count; ++i) {
+        statuses[i] = 0xFFU;
+        results[i] = ft_servo_read(ids[i], address,
+                                  &data[(uint16_t)i * length], length,
+                                  &statuses[i]);
+        if (first_error == FT_SERVO_OK && results[i] != FT_SERVO_OK) {
+            first_error = results[i];
+        }
+    }
+    return first_error;
+}
+
+/**
+  * @brief  通过同步写向多台舵机写入相同 EEPROM 寄存器区间。
+  * @param  ids: ID 数组，每个 ID 范围为 0～253。
+  * @param  count: 舵机数量，必须非零且满足协议帧长度限制。
+  * @param  address: EEPROM 起始地址，由调用者按实际型号确认。
+  * @param  data: 按 ID 顺序排列的数据，至少 count * bytes_per_servo 字节。
+  * @param  bytes_per_servo: 每台数据字节数，各台数据可以不同。
+  * @retval FT_SERVO_OK 表示发送完成；否则为参数或通信错误。
+  * @note   广播无应答，不自动处理写入锁、扭矩或保存验证。
+  *         不校验型号相关的 EEPROM 地址范围；不能据返回值认定保存成功。
+  */
+FtServoResult ft_servo_eeprom_sync_write(const uint8_t *ids, uint8_t count,
+                                         uint8_t address, const uint8_t *data,
+                                         uint8_t bytes_per_servo)
+{
+    return ft_servo_sync_write(ids, count, address, data, bytes_per_servo);
+}
+
+/**
   * @brief  读取一个 8 位寄存器。
   * @param  id: 单播舵机 ID。
   * @param  address: 寄存器地址。
@@ -323,6 +388,76 @@ FtServoResult ft_servo_set_torque(uint8_t id, uint8_t enabled, uint8_t *status)
 FtServoResult ft_servo_set_mode(uint8_t id, uint8_t mode, uint8_t *status)
 {
     return ft_servo_write_byte(id, FT_SMS_REG_MODE, mode, status);
+}
+
+/**
+  * @brief  通过一帧同步写，为指定 ID 数组设置相同工作模式。
+  * @param  ids: 舵机 ID 数组，每个 ID 范围为 0～253。
+  * @param  count: 舵机数量，范围为 1～125。
+  * @param  mode: 模式寄存器原始值。
+  * @retval FT_SERVO_OK：发送完成；其他值：参数或通信错误。
+  * @note   广播无应答，需逐台读回确认；不自动处理扭矩或锁标志。
+  */
+FtServoResult ft_servo_sync_set_mode(const uint8_t *ids, uint8_t count,
+                                     uint8_t mode)
+{
+    return sync_write_same_byte(ids, count, FT_SMS_REG_MODE, mode);
+}
+
+/**
+  * @brief  为指定 ID 数组同步写入相同的单字节寄存器值。
+  * @param  ids: 舵机 ID 数组，每个 ID 范围为 0～253。
+  * @param  count: 舵机数量，范围为 1～125。
+  * @param  address: 寄存器地址。
+  * @param  value: 各台舵机共同写入的值。
+  * @retval 发送结果；广播无应答。
+  */
+static FtServoResult sync_write_same_byte(const uint8_t *ids, uint8_t count,
+                                          uint8_t address, uint8_t value)
+{
+    if (ids == NULL || count == 0U || count > 125U) {
+        return FT_SERVO_BAD_ARGUMENT;
+    }
+
+    uint8_t data[125];
+    for (uint8_t i = 0U; i < count; ++i) {
+        data[i] = value;
+    }
+
+    return ft_servo_sync_write(ids, count, address, data, 1U);
+}
+
+/**
+  * @brief  为指定 ID 数组同步设置扭矩开关。
+  * @param  ids: 舵机 ID 数组，每个 ID 范围为 0～253。
+  * @param  count: 舵机数量，范围为 1～125。
+  * @param  enabled: 0 关闭扭矩，1 开启扭矩。
+  * @retval 发送结果；广播无应答，需逐台读回确认。
+  */
+FtServoResult ft_servo_sync_set_torque(const uint8_t *ids, uint8_t count,
+                                       uint8_t enabled)
+{
+    if (enabled > 1U) {
+        return FT_SERVO_BAD_ARGUMENT;
+    }
+    return sync_write_same_byte(ids, count, FT_SMS_REG_TORQUE_ENABLE, enabled);
+}
+
+/**
+  * @brief  为指定 ID 数组同步设置 EEPROM 锁标志。
+  * @param  ids: 舵机 ID 数组，每个 ID 范围为 0～253。
+  * @param  count: 舵机数量，范围为 1～125。
+  * @param  locked: 0 解锁，1 锁定。
+  * @retval 发送结果；广播无应答，需逐台读回确认。
+  * @note   本函数仅写锁标志，不执行其他 EEPROM 参数读写。
+  */
+FtServoResult ft_servo_sync_set_lock(const uint8_t *ids, uint8_t count,
+                                     uint8_t locked)
+{
+    if (locked > 1U) {
+        return FT_SERVO_BAD_ARGUMENT;
+    }
+    return sync_write_same_byte(ids, count, FT_SMS_REG_LOCK, locked);
 }
 
 /**
@@ -538,6 +673,85 @@ FtServoResult ft_servo_sync_write_speed(const FtServoSpeedCommand *commands,
                          &data[(uint16_t)i * 7U]);
     }
     return ft_servo_sync_write(ids, count, FT_SMS_REG_ACC, data, 7U);
+}
+
+/**
+  * @brief  将 PWM 原始值编码为幅值与 BIT10 方向位。
+  * @param  pwm: -1000～1000，幅值单位为 0.1%。
+  * @param  encoded: 编码输出，内部调用保证非 NULL。
+  * @retval FT_SERVO_OK 或 FT_SERVO_BAD_ARGUMENT。
+  */
+static FtServoResult encode_pwm(int16_t pwm, uint16_t *encoded)
+{
+    if (pwm < -1000 || pwm > 1000) {
+        return FT_SERVO_BAD_ARGUMENT;
+    }
+    *encoded = pwm < 0 ? (uint16_t)(-pwm) | 0x0400U : (uint16_t)pwm;
+    return FT_SERVO_OK;
+}
+
+/**
+  * @brief  立即写入 PWM 开环输出，不改变工作模式或扭矩开关。
+  * @param  id: 单播 ID 或广播 ID。
+  * @param  pwm: -1000～1000，幅值单位 0.1%，负值表示反向，0 为零输出。
+  * @param  status: 非 NULL 时接收单播应答状态字节。
+  * @retval 操作结果；单播仍需检查 status，广播无应答。
+  * @note   调用前须确认器件支持模式 2 并完成模式与扭矩配置。
+  */
+FtServoResult ft_servo_write_pwm(uint8_t id, int16_t pwm, uint8_t *status)
+{
+    uint16_t encoded;
+    FtServoResult result = encode_pwm(pwm, &encoded);
+    if (result != FT_SERVO_OK) {
+        return result;
+    }
+    return ft_servo_write_word(id, FT_SMS_REG_GOAL_PWM_L, encoded, status);
+}
+
+/**
+  * @brief  暂存 PWM 开环输出，等待 ACTION 执行。
+  * @param  id: 单播 ID 或广播 ID。
+  * @param  pwm: -1000～1000，幅值单位 0.1%，BIT10 为方向位。
+  * @param  status: 非 NULL 时接收单播应答状态字节。
+  * @retval 操作结果；不自动配置模式或扭矩。
+  */
+FtServoResult ft_servo_reg_write_pwm(uint8_t id, int16_t pwm, uint8_t *status)
+{
+    uint16_t encoded;
+    FtServoResult result = encode_pwm(pwm, &encoded);
+    if (result != FT_SERVO_OK) {
+        return result;
+    }
+    const uint8_t data[2] = {(uint8_t)encoded, (uint8_t)(encoded >> 8)};
+    return ft_servo_reg_write(id, FT_SMS_REG_GOAL_PWM_L, data, 2U, status);
+}
+
+/**
+  * @brief  在一帧广播中写入多台舵机的 PWM 开环输出。
+  * @param  commands: 各台 ID 与 PWM 原始值数组，PWM 范围 -1000～1000。
+  * @param  count: 舵机数量，范围 1～83，各 ID 范围 0～253。
+  * @retval 参数错误或发送结果；广播无应答，需另行检查反馈。
+  * @note   不自动设置模式、锁标志或扭矩，0 为零输出而非位置保持。
+  */
+FtServoResult ft_servo_sync_write_pwm(const FtServoPwmCommand *commands,
+                                      uint8_t count)
+{
+    if (commands == NULL || count == 0U || count > 83U) {
+        return FT_SERVO_BAD_ARGUMENT;
+    }
+    uint8_t ids[83];
+    uint8_t data[83U * 2U];
+    for (uint8_t i = 0U; i < count; ++i) {
+        uint16_t encoded;
+        if (commands[i].id > 253U ||
+            encode_pwm(commands[i].pwm, &encoded) != FT_SERVO_OK) {
+            return FT_SERVO_BAD_ARGUMENT;
+        }
+        ids[i] = commands[i].id;
+        data[i * 2U] = (uint8_t)encoded;
+        data[i * 2U + 1U] = (uint8_t)(encoded >> 8);
+    }
+    return ft_servo_sync_write(ids, count, FT_SMS_REG_GOAL_PWM_L, data, 2U);
 }
 
 /**

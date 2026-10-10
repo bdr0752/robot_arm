@@ -21,6 +21,18 @@ FtServoResult ft_servo_action(uint8_t id, uint8_t *status);
 FtServoResult ft_servo_sync_write(const uint8_t *ids, uint8_t count,
                                   uint8_t address, const uint8_t *data,
                                   uint8_t bytes_per_servo);
+/* EEPROM 批量读：逐 ID 通信，各台数据按 ID 数组顺序连续存放。
+ * results 和 statuses 均需容纳 count 项；数据需容纳 count * length 字节。
+ * 地址范围和写入锁由调用者按实际型号确认。 */
+FtServoResult ft_servo_eeprom_read_batch(const uint8_t *ids, uint8_t count,
+                                         uint8_t address, uint8_t *data,
+                                         uint8_t length, FtServoResult *results,
+                                         uint8_t *statuses);
+/* EEPROM 批量写：每台数据占 bytes_per_servo 字节，广播无应答。
+ * 不自动解锁、锁定或读回，不保证掉电保存。 */
+FtServoResult ft_servo_eeprom_sync_write(const uint8_t *ids, uint8_t count,
+                                         uint8_t address, const uint8_t *data,
+                                         uint8_t bytes_per_servo);
 FtServoResult ft_servo_read_byte(uint8_t id, uint8_t address,
                                  uint8_t *value, uint8_t *status);
 FtServoResult ft_servo_read_word(uint8_t id, uint8_t address,
@@ -32,9 +44,18 @@ FtServoResult ft_servo_write_word(uint8_t id, uint8_t address,
 
 /* SMS/STS 常用控制；位置和速度负值沿用飞特例程的 bit15 符号编码。 */
 FtServoResult ft_servo_set_torque(uint8_t id, uint8_t enabled, uint8_t *status);
+/* 批量扭矩控制：0 关闭，1 开启；广播无应答。 */
+FtServoResult ft_servo_sync_set_torque(const uint8_t *ids, uint8_t count,
+                                       uint8_t enabled);
 FtServoResult ft_servo_set_mode(uint8_t id, uint8_t mode, uint8_t *status);
+/* 为指定 ID 数组写入相同模式；广播无应答，不处理扭矩或锁标志。 */
+FtServoResult ft_servo_sync_set_mode(const uint8_t *ids, uint8_t count,
+                                     uint8_t mode);
 FtServoResult ft_servo_read_mode(uint8_t id, uint8_t *mode, uint8_t *status);
 FtServoResult ft_servo_set_lock(uint8_t id, uint8_t locked, uint8_t *status);
+/* 批量设置 EEPROM 锁标志：0 解锁，1 锁定；广播无应答。 */
+FtServoResult ft_servo_sync_set_lock(const uint8_t *ids, uint8_t count,
+                                     uint8_t locked);
 FtServoResult ft_servo_calibrate_offset(uint8_t id, uint8_t *status);
 FtServoResult ft_servo_write_position(uint8_t id, int16_t position,
                                       uint16_t speed, uint8_t acceleration,
@@ -59,6 +80,17 @@ typedef struct {
     int16_t speed;
     uint8_t acceleration;
 } FtServoSpeedCommand;
+
+/* PWM 原始值：-1000～1000，幅值单位 0.1%，负值使用 BIT10 方向位。
+ * 不自动设置模式或扭矩；0 表示零 PWM 输出，不表示位置保持。 */
+FtServoResult ft_servo_write_pwm(uint8_t id, int16_t pwm, uint8_t *status);
+FtServoResult ft_servo_reg_write_pwm(uint8_t id, int16_t pwm, uint8_t *status);
+typedef struct {
+    uint8_t id;
+    int16_t pwm;
+} FtServoPwmCommand;
+FtServoResult ft_servo_sync_write_pwm(const FtServoPwmCommand *commands,
+                                      uint8_t count);
 
 /* 批量同步写采用广播帧，没有逐个舵机应答。 */
 FtServoResult ft_servo_sync_write_position(const FtServoPositionCommand *commands,

@@ -51,6 +51,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     driver/Src/ft_servo_protocol.c
     driver/Src/ws2812.c
     bsp/Src/bsp_uart.c
+    Controller/Src/PID.c
+    Controller/Src/servo_speed_loop.c
 )
 
 # Add include paths
@@ -58,6 +60,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     bsp/Inc
     driver/Inc
+    Controller/Inc
 )
 
 # Add project symbols (macros)

@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "usart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -25,6 +26,7 @@
 #include "ft_Servo.h"
 #include "stm32h7xx_hal.h"
 #include "ws2812.h"
+#include <stdint.h>
 
 /* USER CODE END Includes */
 
@@ -54,6 +56,9 @@ static volatile FtServoResult r_position;
 static volatile FtServoResult r_torque;
 static volatile FtServoResult r_min;
 static volatile FtServoResult r_max;
+static volatile FtServoResult r_current;
+static volatile FtServoResult r_voltage;
+static volatile FtServoResult r_pwm;
 
 static volatile FtServoResult min_angle_result;
 static volatile FtServoResult max_angle_result;
@@ -62,7 +67,29 @@ static volatile FtServoResult max_angle_result;
 static volatile uint8_t hold_request = 0U;
 static volatile uint8_t hold_step = 0U;
 
+static uint16_t current_value = 0U;
+static uint8_t voltage_value = 0U;
+static volatile int16_t pwm_value = 50;
+static volatile float real_current_value = 0;
 
+//static volatile 
+
+FtServoPositionCommand commands[2] = {
+    {
+        .id = 2U,
+        .position = 2048,
+        .speed = 5,
+        .acceleration = 5
+    },
+    {
+        .id = 6U,
+        .position = 4096,
+        .speed = 5,
+        .acceleration = 5
+    }
+};
+
+static volatile FtServoResult sync_result ;
 
 /* USER CODE END PV */
 
@@ -110,13 +137,16 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   /* 板级初始化内部依次配置 GPIO、DMA、USART3，并绑定舵机串口管理对象。 */
   Bsp_Board_Init();
   ws2812_init();
+  ws2812_set_pixel(0U, (Ws2812Color){.red = 255U, .green = 0U, .blue = 0U});
+  ws2812_show();
   HAL_Delay(100);
   /* 与刚刚 PING 成功时使用的 ID 保持一致。 */
-  const uint8_t servo_id = 0x06U;
+  const uint8_t servo_id = 0x03U;
   
   uint8_t status = 0;
   uint8_t mode = 1;
@@ -130,31 +160,39 @@ int main(void)
   uint8_t torque_status = 0xFFU;
   uint8_t min_status = 0xFFU;
   uint8_t max_status = 0xFFU;
+
   
-  /* 读取扭矩使能状态，不改变它。 */
-  r_torque = ft_servo_read_byte(
-  	servo_id, FT_SMS_REG_TORQUE_ENABLE,
-  	&torque_enabled, &torque_status);
+  uint8_t pwm_status = 0xFFU;
   
-  /* 读取舵机配置的位置下限。 */
-  r_min = ft_servo_read_word(
-  	servo_id, FT_SMS_REG_MIN_ANGLE_L,
-  	&min_position, &min_status);
+  uint8_t current_status = 0xFFU;
+  uint8_t voltage_status = 0xFFU;
   
-  /* 读取舵机配置的位置上限。 */
-  r_max = ft_servo_read_word(
-		servo_id, FT_SMS_REG_MAX_ANGLE_L,
-		&max_position, &max_status);
+
+  
+  // /* 读取扭矩使能状态，不改变它。 */
+  // r_torque = ft_servo_read_byte(
+  // 	servo_id, FT_SMS_REG_TORQUE_ENABLE,
+  // 	&torque_enabled, &torque_status);
+  
+  // /* 读取舵机配置的位置下限。 */
+  // r_min = ft_servo_read_word(
+  // 	servo_id, FT_SMS_REG_MIN_ANGLE_L,
+  // 	&min_position, &min_status);
+  
+  // /* 读取舵机配置的位置上限。 */
+  // r_max = ft_servo_read_word(
+	// 	servo_id, FT_SMS_REG_MAX_ANGLE_L,
+	// 	&max_position, &max_status);
 
   
 
 
-  r_ping = ft_servo_ping(servo_id, &status);
-  r_model = ft_servo_read_word(
-      servo_id, FT_SMS_REG_MODEL_L, &model, &status);
-  r_mode = ft_servo_set_mode(servo_id, FT_SMS_MODE_WHEEL, &status);
-  r_position = ft_servo_read_position(
-      servo_id, &position, &status);
+  // r_ping = ft_servo_ping(servo_id, &status);
+  // r_model = ft_servo_read_word(
+  //     servo_id, FT_SMS_REG_MODEL_L, &model, &status);
+  // r_mode = ft_servo_set_mode(servo_id, FT_SMS_MODE_WHEEL, &status);
+  // r_position = ft_servo_read_position(
+  //     servo_id, &position, &status);
 	  
   /* 测试结果，供调试器观察。 */
 
@@ -167,8 +205,20 @@ int main(void)
 //  FtServoResult hold_result = FT_SERVO_OK;
   
   
-  Ft_SetPosition(servo_id,2048,5,5);
-  
+  // Ft_SetPosition(servo_id,2048,5,5);
+
+  /* 关闭扭矩 */
+  r_torque = ft_servo_set_torque(servo_id, 0U, &torque_status);
+
+  /* 设置 PWM 模式 */
+  r_mode = ft_servo_set_mode(servo_id, FT_SMS_MODE_PWM, &status);
+
+
+
+  /* 开启扭矩，开始输出 */
+  r_torque = ft_servo_set_torque(servo_id, 1U, &torque_status);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -178,6 +228,15 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  
+	  /* 写入 PWM 参数 */
+	r_pwm = ft_servo_write_pwm(servo_id, pwm_value, &pwm_status);
+	  /* 读取电流 */
+	r_current = ft_servo_read_current(servo_id, &current_value, &current_status);
+	r_voltage = ft_servo_read_voltage(servo_id, &voltage_value, &voltage_status);
+	real_current_value=(float)current_value*6.5f;
+	  
+	  HAL_Delay(100);
 // 	  if (hold_request == 1U) {
 //     /* 清除请求，本次只执行一次。 */
 //     hold_request = 0U;
@@ -262,7 +321,7 @@ int main(void)
 // }
   }
   
-/* USER CODE END 3 */
+  /* USER CODE END 3 */
 }
 
 /**

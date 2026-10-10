@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_PWR_LDO_SUPPLY,USE_HAL_DRIVER,STM32H723xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32H7xx_HAL_Driver/Inc;../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32H7xx/Include;../Drivers/CMSIS/Include;../bsp/Inc;../driver/Inc</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32H7xx_HAL_Driver/Inc;../Drivers/STM32H7xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32H7xx/Include;../Drivers/CMSIS/Include;../bsp/Inc;../driver/Inc;../Controller/Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -618,6 +618,31 @@
               <FileName>ws2812.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\driver\Src\ws2812.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Controller</GroupName>
+          <Files>
+            <File>
+              <FileName>PID.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Controller/Src/PID.c</FilePath>
+            </File>
+            <File>
+              <FileName>servo_speed_loop.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Controller/Src/servo_speed_loop.c</FilePath>
+            </File>
+            <File>
+              <FileName>PID.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Controller/Inc/PID.h</FilePath>
+            </File>
+            <File>
+              <FileName>servo_speed_loop.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Controller/Inc/servo_speed_loop.h</FilePath>
             </File>
           </Files>
         </Group>
