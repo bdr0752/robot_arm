@@ -1,6 +1,6 @@
 #include "ft_servo_protocol.h"
 #include "ft_servo_defs.h"
-#include "servo_bus.h"
+#include "ft_servo_bus.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -12,7 +12,7 @@ static const uint8_t *reply;
 static uint16_t reply_length;
 static unsigned call_count;
 
-ServoBusResult servo_bus_exchange(uint8_t *tx, uint16_t tx_length,
+FtServoBusResult ft_servo_bus_exchange(uint8_t *tx, uint16_t tx_length,
                                   uint8_t *rx, uint16_t rx_length)
 {
     assert(tx_length == expected_tx_length);
@@ -23,7 +23,7 @@ ServoBusResult servo_bus_exchange(uint8_t *tx, uint16_t tx_length,
         memcpy(rx, reply, rx_length);
     }
     ++call_count;
-    return SERVO_BUS_OK;
+    return FT_SERVO_BUS_OK;
 }
 
 static void expect_exchange(const uint8_t *tx, uint16_t tx_length,

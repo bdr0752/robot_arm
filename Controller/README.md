@@ -17,7 +17,7 @@
 
 `D_Filter_Enable = true` 时，根据 `D_Filter_Time` 对微分进行低通滤波；为 `false` 时直接使用原始微分，忽略滤波时间常数。启用时，时间常数须为有限非负数；设为 0 同样使用原始微分。未指定 `D_Filter_Enable` 的零初始化配置默认关闭滤波。修改后可调用 `PID_Reset()` 清除旧历史。
 
-可监视 `pid.Target`、`Now`、`Error`、`P_Out`、`I_Out`、`D_Out` 和 `Out`。速度环对象中的 PID 历史只在 PWM 写入成功且状态为零后提交。
+可监视 `pid.Target`、`Now`、`Error`、`P_Out`、`I_Out`、`D_Out` 和 `Out`。速度环依次读取反馈、直接计算 PID、发送 PWM，不复制或整份回写 PID 对象。PID 计算后立即更新历史，PWM 写入失败时不回退；`loop.pwm` 表示计算输出，发送结果仍需检查返回值和状态字节。读取失败时不计算 PID。
 
 原来的 `PidConfig`、`PidController` 和 `Pid_Init/Reset/Update` 已替换为以上名称，调用代码和测试同步更新。PID 参数和周期由实际通信时间、负载及反馈确定，没有已验证的默认参数。
 

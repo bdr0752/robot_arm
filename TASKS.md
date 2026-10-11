@@ -4,7 +4,7 @@
 
 ## 项目与接口现状
 
-- `bsp_board` 集中初始化 GPIO、DMA、USART3，设置 RS485 接收方向并启用 DWT；`bsp_uart` 绑定已初始化的 `huart3`，管理 DMA 空闲接收；`servo_bus` 管理方向切换与请求、应答交换。
+- `bsp_board` 集中初始化 GPIO、DMA、USART3/USART1 并绑定资源；`bsp_uart` 管理 DMA 空闲接收；`bsp_rs485` 管理方向切换与发送；`driver/ft_servo_bus` 管理舵机请求应答；DWT 与 WS2812 波形分别由独立 BSP 模块实现。
 - USART3 使用 PD8/PD9、115200 波特率、8N1；PB14 控制 RS485 收发方向。当前发送为阻塞方式，接收使用 DMA。
 - GCC 链接脚本 `STM32H723xG_flash.ld` 将接收缓冲区放在 RAM_D2；Keil 的内存布局需要单独核对。
 - `ft_servo_protocol` 提供 PING、寄存器读写、异步写入与执行、同步写入，以及原始位置、速度、扭矩、模式和反馈读取。位置与速度同步写支持 1～31 台舵机。

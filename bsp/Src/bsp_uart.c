@@ -34,7 +34,8 @@ BspUartResult Bsp_Uart_Attach(BspUartManager *manager,
                              UART_HandleTypeDef *huart,
                              uint8_t *rx_buffer, uint16_t rx_capacity)
 {
-    if (manager == NULL || huart == NULL || rx_buffer == NULL || rx_capacity == 0U) {
+    if (manager == NULL || huart == NULL || rx_buffer == NULL || rx_capacity == 0U ||
+        huart->hdmarx == NULL) {
         return BSP_UART_ARGUMENT;
     }
     /* 同一路 UART 只能绑定一个管理对象，避免两个缓冲区争用接收 DMA。 */
@@ -66,25 +67,17 @@ BspUartResult Bsp_Uart_Attach(BspUartManager *manager,
   */
 void Bsp_Uart_SetRxCallback(BspUartManager *manager, BspUartRxCallback callback)
 {
-    if (manager != NULL) {
-        manager->callback = callback;
-    }
+    manager->callback = callback;
 }
 
 /**
   * @brief  清除旧状态并启动 UART DMA 接收至空闲事件。
   * @param  manager: 已绑定的管理对象。
-  * @retval BSP_UART_OK、参数错误或 HAL 启动失败。
+  * @retval BSP_UART_OK 或 HAL 启动失败。
   */
 BspUartResult Bsp_Uart_StartReceiveToIdle(BspUartManager *manager)
 {
-    if (manager == NULL || manager->huart == NULL ||
-        manager->huart->hdmarx == NULL || manager->rx_buffer == NULL ||
-        manager->rx_capacity == 0U) {
-        return BSP_UART_ARGUMENT;
-    }
-
-    /* 每次接收都是一次新的请求/应答，先清除上次的结果。 */
+    /* 开始新的接收，清除上次结果。 */
     manager->rx_size = 0U;
     manager->rx_done = 0U;
     manager->rx_error = 0U;
@@ -104,21 +97,14 @@ BspUartResult Bsp_Uart_StartReceiveToIdle(BspUartManager *manager)
   * @param  data: 待发送数据缓冲区。
   * @param  length: 发送字节数。
   * @param  timeout_ms: HAL 发送超时时间，单位为毫秒。
-  * @retval BSP_UART_OK、超时、参数错误或 HAL 发送失败。
+  * @retval 无
+  * @note   直接调用 HAL，不返回发送状态。
   */
-BspUartResult Bsp_Uart_Transmit(BspUartManager *manager,
+void Bsp_Uart_Transmit(BspUartManager *manager,
                                 uint8_t *data, uint16_t length,
                                 uint32_t timeout_ms)
 {
-    if (manager == NULL || manager->huart == NULL || data == NULL || length == 0U) {
-        return BSP_UART_ARGUMENT;
-    }
-    HAL_StatusTypeDef result = HAL_UART_Transmit(manager->huart, data,
-                                                 length, timeout_ms);
-    if (result == HAL_OK) {
-        return BSP_UART_OK;
-    }
-    return result == HAL_TIMEOUT ? BSP_UART_TIMEOUT : BSP_UART_ERROR;
+    HAL_UART_Transmit(manager->huart, data, length, timeout_ms);
 }
 
 /**
@@ -126,15 +112,11 @@ BspUartResult Bsp_Uart_Transmit(BspUartManager *manager,
   * @param  manager: 已绑定且已启动接收的管理对象。
   * @param  timeout_ms: 最长等待时间，单位为毫秒；超时会中止接收。
   * @param  size: 成功时写入本次实际收到的字节数。
-  * @retval BSP_UART_OK、超时、参数错误或接收错误。
+  * @retval BSP_UART_OK、超时或接收错误。
   */
 BspUartResult Bsp_Uart_WaitReceive(BspUartManager *manager,
                                    uint32_t timeout_ms, uint16_t *size)
 {
-    if (manager == NULL || size == NULL) {
-        return BSP_UART_ARGUMENT;
-    }
-
     /* 主循环等待中断回调写入 rx_done；用 HAL tick 限制等待时间。 */
     uint32_t start = HAL_GetTick();
     while (manager->rx_done == 0U) {
@@ -154,15 +136,13 @@ BspUartResult Bsp_Uart_WaitReceive(BspUartManager *manager,
 
 /**
   * @brief  中止当前 UART 接收并清除完成标志。
-  * @param  manager: 管理对象；NULL 时不执行操作。
+  * @param  manager: 已绑定的管理对象。
   * @retval 无
   */
 void Bsp_Uart_AbortReceive(BspUartManager *manager)
 {
-    if (manager != NULL && manager->huart != NULL) {
-        HAL_UART_AbortReceive(manager->huart);
-        manager->rx_done = 0U;
-    }
+    HAL_UART_AbortReceive(manager->huart);
+    manager->rx_done = 0U;
 }
 
 /**
@@ -175,18 +155,17 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size)
 {
     /* UART 空闲或 DMA 缓冲区写满时，由 HAL 在中断中调用。 */
     BspUartManager *manager = find_manager(huart);
+    manager->rx_size = size;
+    __DMB();
+    manager->rx_done = 1U;
     if (manager == NULL) {
         return;
     }
 
-    /* size 是实际收到的字节数，不是缓冲区容量。 */
-    if (size > manager->rx_capacity) {
-        manager->rx_error = 1U;
-    } else {
-        manager->rx_size = size;
-        if (manager->callback != NULL) {
-            manager->callback(manager, manager->rx_buffer, size);
-        }
+    /* HAL 使用绑定的容量启动 DMA，此处记录本次实际长度。 */
+    manager->rx_size = size;
+    if (manager->callback != NULL) {
+        manager->callback(manager, manager->rx_buffer, size);
     }
     /* 最后置完成标志，让等待方读到本次长度和错误状态。 */
     __DMB();

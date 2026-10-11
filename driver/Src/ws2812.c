@@ -1,5 +1,5 @@
 #include "ws2812.h"
-#include "bsp_board.h"
+#include "bsp_ws2812.h"
 
 static Ws2812Color pixels[WS2812_LED_COUNT];
 
@@ -50,5 +50,5 @@ void ws2812_show(void)
         grb[3U * i + 1U] = pixels[i].red;
         grb[3U * i + 2U] = pixels[i].blue;
     }
-    bsp_board_ws2812_send_grb(grb, sizeof(grb));
+    Bsp_Ws2812_SendGrb(grb, sizeof(grb));
 }

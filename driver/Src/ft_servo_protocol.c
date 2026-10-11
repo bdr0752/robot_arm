@@ -1,6 +1,6 @@
 #include "ft_servo_protocol.h"
 
-#include "servo_bus.h"
+#include "ft_servo_bus.h"
 
 #include <string.h>
 
@@ -16,12 +16,12 @@ static FtServoResult sync_write_same_byte(const uint8_t *ids, uint8_t count,
   * @param  result: 总线层返回值。
   * @retval 对应的 FtServoResult。
   */
-static FtServoResult map_bus_result(ServoBusResult result)
+static FtServoResult map_bus_result(FtServoBusResult result)
 {
-    if (result == SERVO_BUS_TIMEOUT) {
+    if (result == FT_SERVO_BUS_TIMEOUT) {
         return FT_SERVO_TIMEOUT;
     }
-    if (result == SERVO_BUS_LENGTH) {
+    if (result == FT_SERVO_BUS_LENGTH) {
         return FT_SERVO_BAD_REPLY;
     }
     return FT_SERVO_IO_ERROR;
@@ -99,10 +99,10 @@ static FtServoResult write_registers(uint8_t id, uint8_t instruction,
     tx[length + 6U] = frame_checksum(&tx[2], (uint16_t)length + 4U);
 
     uint16_t reply_length = id == FT_SCS_BROADCAST_ID ? 0U : sizeof(rx);
-    ServoBusResult bus = servo_bus_exchange(tx, (uint16_t)length + 7U,
+    FtServoBusResult bus = ft_servo_bus_exchange(tx, (uint16_t)length + 7U,
                                              reply_length == 0U ? NULL : rx,
                                              reply_length);
-    if (bus != SERVO_BUS_OK) {
+    if (bus != FT_SERVO_BUS_OK) {
         return map_bus_result(bus);
     }
     return reply_length == 0U ? FT_SERVO_OK : check_reply(id, rx, 0U, status);
@@ -129,9 +129,9 @@ FtServoResult ft_servo_read(uint8_t id, uint8_t address,
                      FT_SCS_INST_READ, address, length, 0U};
     uint8_t rx[FT_SERVO_MAX_READ_BYTES + 6U];
     tx[7] = frame_checksum(&tx[2], 5U);
-    ServoBusResult bus = servo_bus_exchange(tx, sizeof(tx), rx,
+    FtServoBusResult bus = ft_servo_bus_exchange(tx, sizeof(tx), rx,
                                              (uint16_t)length + 6U);
-    if (bus != SERVO_BUS_OK) {
+    if (bus != FT_SERVO_BUS_OK) {
         return map_bus_result(bus);
     }
     FtServoResult result = check_reply(id, rx, length, status);
@@ -187,10 +187,10 @@ FtServoResult ft_servo_action(uint8_t id, uint8_t *status)
     uint8_t rx[6];
     tx[5] = frame_checksum(&tx[2], 3U);
     uint16_t reply_length = id == FT_SCS_BROADCAST_ID ? 0U : sizeof(rx);
-    ServoBusResult bus = servo_bus_exchange(tx, sizeof(tx),
+    FtServoBusResult bus = ft_servo_bus_exchange(tx, sizeof(tx),
                                              reply_length == 0U ? NULL : rx,
                                              reply_length);
-    if (bus != SERVO_BUS_OK) {
+    if (bus != FT_SERVO_BUS_OK) {
         return map_bus_result(bus);
     }
     return reply_length == 0U ? FT_SERVO_OK : check_reply(id, rx, 0U, status);
@@ -232,8 +232,8 @@ FtServoResult ft_servo_sync_write(const uint8_t *ids, uint8_t count,
         offset += bytes_per_servo;
     }
     tx[offset] = frame_checksum(&tx[2], offset - 2U);
-    ServoBusResult bus = servo_bus_exchange(tx, offset + 1U, NULL, 0U);
-    return bus == SERVO_BUS_OK ? FT_SERVO_OK : map_bus_result(bus);
+    FtServoBusResult bus = ft_servo_bus_exchange(tx, offset + 1U, NULL, 0U);
+    return bus == FT_SERVO_BUS_OK ? FT_SERVO_OK : map_bus_result(bus);
 }
 
 /**
@@ -841,8 +841,8 @@ FtServoResult ft_servo_ping(uint8_t id, uint8_t *status)
     uint8_t tx[6] = {0xFFU, 0xFFU, id, 0x02U, FT_SCS_INST_PING, 0U};
     uint8_t rx[6];
     tx[5] = frame_checksum(&tx[2], 3U);
-    ServoBusResult bus = servo_bus_exchange(tx, sizeof(tx), rx, sizeof(rx));
-    if (bus != SERVO_BUS_OK) {
+    FtServoBusResult bus = ft_servo_bus_exchange(tx, sizeof(tx), rx, sizeof(rx));
+    if (bus != FT_SERVO_BUS_OK) {
         return map_bus_result(bus);
     }
     return check_reply(id, rx, 0U, status);

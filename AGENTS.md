@@ -6,7 +6,7 @@
 
 ## 项目结构与模块
 
-这是 STM32H723VGTx 的 CubeMX/CMake 固件工程，也提供 `MDK-ARM/robot_arm.uvprojx`。`robot_arm.ioc` 保存外设配置；`Core` 放应用入口与生成代码；`bsp` 中 `bsp_board` 集中初始化外设，`bsp_uart` 绑定已初始化的 UART 并管理 DMA 空闲接收，`servo_bus` 管理 RS485 收发；`driver` 中 `ft_servo_protocol` 处理协议及寄存器原始值，`ft_Servo` 提供模式切换封装与角度换算，另有 WS2812 驱动；`tests` 放主机端测试；`TASKS.md` 记录验证进度。新增 `.c` 时同步核对 CMake 与 Keil 的源文件列表、头文件路径。
+这是 STM32H723VGTx 的 CubeMX/CMake 固件工程，也提供 `MDK-ARM/robot_arm.uvprojx`。`robot_arm.ioc` 保存外设配置；`Core` 放应用入口与生成代码；`bsp` 中 `bsp_board` 集中初始化并绑定资源，`bsp_uart` 管理 DMA 空闲接收，`bsp_rs485` 管理方向切换与发送，`bsp_dwt` 管理周期计时，`bsp_ws2812` 输出灯珠波形；`driver` 中 `ft_servo_bus` 管理舵机请求应答，`ft_servo_protocol` 处理协议及寄存器原始值，`ft_Servo` 提供模式切换封装与角度换算，另有 WS2812 颜色驱动；`tests` 放主机端测试；`TASKS.md` 记录验证进度。新增 `.c` 时同步核对 CMake 与 Keil 的源文件列表、头文件路径。
 
 ## 构建、测试与开发命令
 

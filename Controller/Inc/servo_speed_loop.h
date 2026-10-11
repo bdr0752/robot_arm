@@ -10,7 +10,7 @@ typedef struct {
     Struct_PID pid;
     float target_speed;
     int16_t measured_speed;
-    int16_t pwm;
+    int16_t pwm; /* 最近一次计算出的 PWM，不代表发送成功。 */
 } ServoSpeedLoop;
 
 bool ServoSpeedLoop_Init(ServoSpeedLoop *loop, uint8_t id,
@@ -18,7 +18,7 @@ bool ServoSpeedLoop_Init(ServoSpeedLoop *loop, uint8_t id,
 /* 调用前配置 PWM 模式和扭矩；周期调用，D_T 为实际反馈间隔。
  * 内部使用阻塞串口，不能在中断中调用，同一总线须串行访问。
  * 返回 FT_SERVO_OK 且 *status == 0 才表示本次读写成功。
- * 不包含自动停机、故障锁存或模式切换。 */
+ * PID 直接计算并更新历史，PWM 写入失败时不回退历史。 */
 FtServoResult ServoSpeedLoop_Update(ServoSpeedLoop *loop, float target_speed,
                                      float D_T, uint8_t *status);
 

@@ -5,9 +5,9 @@
 
 /* PID 参数：所有时间使用秒，积分限幅针对 I 项输出而非误差累计值。 */
 typedef struct {
-    float K_P;             /* 比例增益。 */
-    float K_I;             /* 积分增益。 */
-    float K_D;             /* 微分增益。 */
+    volatile float K_P;             /* 比例增益。 */
+    volatile float K_I;             /* 积分增益。 */
+    volatile float K_D;             /* 微分增益。 */
 
     float Out_Min;         /* PID 总输出下限。 */
     float Out_Max;         /* PID 总输出上限。 */

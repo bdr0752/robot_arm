@@ -18,15 +18,21 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "usart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bsp_board.h"
 #include "ft_Servo.h"
 #include "stm32h7xx_hal.h"
+#include "stm32h7xx_hal_uart.h"
+#include "vofa.h"
 #include "ws2812.h"
+#include "vofa.h"
 #include <stdint.h>
+#include "servo_speed_loop.h"
+#include "bsp_uart.h"
+#include <string.h>
+#include <math.h>
 
 /* USER CODE END Includes */
 
@@ -48,48 +54,37 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-/* 保存通信结果，供调试器观察。 */
-static volatile FtServoResult r_ping;
-static volatile FtServoResult r_model;
+
 static volatile FtServoResult r_mode;
-static volatile FtServoResult r_position;
+// static volatile FtServoResult r_position;
 static volatile FtServoResult r_torque;
-static volatile FtServoResult r_min;
-static volatile FtServoResult r_max;
-static volatile FtServoResult r_current;
-static volatile FtServoResult r_voltage;
-static volatile FtServoResult r_pwm;
 
-static volatile FtServoResult min_angle_result;
-static volatile FtServoResult max_angle_result;
 
-/* 调试器中改为 1：执行一次保持位置测试。 */
-static volatile uint8_t hold_request = 0U;
-static volatile uint8_t hold_step = 0U;
 
-static uint16_t current_value = 0U;
-static uint8_t voltage_value = 0U;
-static volatile int16_t pwm_value = 50;
-static volatile float real_current_value = 0;
-
-//static volatile 
-
-FtServoPositionCommand commands[2] = {
-    {
-        .id = 2U,
-        .position = 2048,
-        .speed = 5,
-        .acceleration = 5
-    },
-    {
-        .id = 6U,
-        .position = 4096,
-        .speed = 5,
-        .acceleration = 5
-    }
+const Struct_PID_Config *config = &(Struct_PID_Config){
+    .K_P = 0.0f,
+    .K_I = 0.0f,
+    .K_D = 0.0f,
+    .Out_Min = -1000.0f,
+    .Out_Max = 1000.0f,
+    .I_Out_Min = -500.0f,
+    .I_Out_Max = 500.0f,
+    .D_Filter_Enable = false,
+    .D_Filter_Time = 0.0f
 };
 
-static volatile FtServoResult sync_result ;
+ServoSpeedLoop *loop = &(ServoSpeedLoop){
+    .id = 0x03U,
+    .pid = (Struct_PID){0},
+    .target_speed = 0.0f,
+    .measured_speed = 0,
+    .pwm = 0
+};
+
+float Channel[5] = {0};
+static volatile float target_speed = 0.0f;
+uint32_t time_now = 0.0f;
+uint32_t time_last = 0.0f;
 
 /* USER CODE END PV */
 
@@ -101,6 +96,114 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+
+///**
+//  * @brief  解析命令，直接修改对应参数。
+//  * @param  Line: 不含换行、可修改的命令字符串。
+//  * @retval 无；无效命令忽略。
+//  */
+//static void Vofa_HandleCommand(char *Line)
+//{
+//    char *Text = strchr(Line, '=');
+//    if (Text == NULL) {
+//        return;
+//    }
+//    *Text++ = '\0';
+
+//    volatile float *Parameter;
+
+//    if (strcmp(Line, "kp") == 0) {
+//        Parameter = &loop->pid.Config.K_P;
+//    } else if (strcmp(Line, "ki") == 0) {
+//        Parameter = &loop->pid.Config.K_I;
+//    } else if (strcmp(Line, "kd") == 0) {
+//        Parameter = &loop->pid.Config.K_D;
+//    } else if (strcmp(Line, "speed") == 0) {
+//        Parameter = &target_speed;
+//    } else {
+//        return;
+//    }
+
+//    float Value = 0.0f;
+//    float Scale = 1.0f;
+//    bool Decimal = false;
+//    bool Has_Digit = false;
+//    bool Negative = (*Text == '-');
+
+//    if (Negative) {
+//        Text++;
+//    }
+
+//    for (; *Text != '\0'; Text++) {
+//        if (*Text == '.' && !Decimal) {
+//            Decimal = true;
+//        } else if (*Text >= '0' && *Text <= '9') {
+//            Has_Digit = true;
+//            if (Decimal) {
+//                Scale *= 0.1f;
+//                Value += (float)(*Text - '0') * Scale;
+//            } else {
+//                Value = Value * 10.0f + (float)(*Text - '0');
+//            }
+//        } else {
+//            return;
+//        }
+//    }
+
+//    Value = Negative ? -Value : Value;
+
+//    if (!Has_Digit || !isfinite(Value)) {
+//        return;
+//    }
+//    if (Parameter == &target_speed) {
+//        if (fabsf(Value) > 32767.0f) {
+//            return;
+//        }
+//    } else if (Value < 0.0f) {
+//        return;
+//    }
+
+//    *Parameter = Value;
+//}
+
+///**
+//  * @brief  拼接 UART 数据，收到换行后处理命令。
+//  * @param  Manager: 接收管理对象。
+//  * @param  Data: 本次收到的数据。
+//  * @param  Size: 数据字节数。
+//  * @retval 无。
+//  */
+//static void Vofa_RxCallback(BspUartManager *Manager,
+//                            const uint8_t *Data, uint16_t Size)
+//{
+//    static char Line[VOFA_RX_LINE_SIZE];
+//    static uint16_t Length = 0U;
+
+//    (void)Manager;
+
+//    for (uint16_t i = 0U; i < Size; i++) {
+//        char Byte = (char)Data[i];
+
+//        if (Byte == '\r') {
+//            continue;
+//        }
+
+//        if (Byte == '\n') {
+//            if (Length > 0U && Length < sizeof(Line)) {
+//                Line[Length] = '\0';
+//                Vofa_HandleCommand(Line);
+//            }
+//            Length = 0U;
+//        } else if (Byte != '\0' && Length < sizeof(Line) - 1U) {
+//            Line[Length++] = Byte;
+//        } else {
+//            /* 超长或含 NUL 的命令忽略到下一次换行。 */
+//            Length = sizeof(Line);
+//        }
+//    }
+//    Bsp_Uart_StartReceiveToIdle(Manager);
+//}
 
 /* USER CODE END 0 */
 
@@ -137,190 +240,62 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-  /* 板级初始化内部依次配置 GPIO、DMA、USART3，并绑定舵机串口管理对象。 */
+  /* 板级初始化内部配置 GPIO、DMA、USART3、USART1，并绑定串口管理对象。 */
   Bsp_Board_Init();
+
+//  BspUartManager *Debug_Uart = Bsp_Board_DebugUart();
+//  Bsp_Uart_SetRxCallback(Debug_Uart, Vofa_RxCallback);
+  Vofa_Init();
+
+  ServoSpeedLoop_Init(loop, 0x03U, config);
+
   ws2812_init();
   ws2812_set_pixel(0U, (Ws2812Color){.red = 255U, .green = 0U, .blue = 0U});
   ws2812_show();
+
   HAL_Delay(100);
-  /* 与刚刚 PING 成功时使用的 ID 保持一致。 */
-  const uint8_t servo_id = 0x03U;
-  
+
   uint8_t status = 0;
-  uint8_t mode = 1;
-  uint16_t model = 0;
-  uint16_t position = 0;
-  
-  uint8_t torque_enabled = 0xFFU;
-  uint16_t min_position = 0U;
-  uint16_t max_position = 0U;
   
   uint8_t torque_status = 0xFFU;
-  uint8_t min_status = 0xFFU;
-  uint8_t max_status = 0xFFU;
-
+  uint8_t pid_status = 0xFFU;
+  float D_T = 0.0f;
   
-  uint8_t pwm_status = 0xFFU;
-  
-  uint8_t current_status = 0xFFU;
-  uint8_t voltage_status = 0xFFU;
-  
-
-  
-  // /* 读取扭矩使能状态，不改变它。 */
-  // r_torque = ft_servo_read_byte(
-  // 	servo_id, FT_SMS_REG_TORQUE_ENABLE,
-  // 	&torque_enabled, &torque_status);
-  
-  // /* 读取舵机配置的位置下限。 */
-  // r_min = ft_servo_read_word(
-  // 	servo_id, FT_SMS_REG_MIN_ANGLE_L,
-  // 	&min_position, &min_status);
-  
-  // /* 读取舵机配置的位置上限。 */
-  // r_max = ft_servo_read_word(
-	// 	servo_id, FT_SMS_REG_MAX_ANGLE_L,
-	// 	&max_position, &max_status);
-
-  
-
-
-  // r_ping = ft_servo_ping(servo_id, &status);
-  // r_model = ft_servo_read_word(
-  //     servo_id, FT_SMS_REG_MODEL_L, &model, &status);
-  // r_mode = ft_servo_set_mode(servo_id, FT_SMS_MODE_WHEEL, &status);
-  // r_position = ft_servo_read_position(
-  //     servo_id, &position, &status);
-	  
-  /* 测试结果，供调试器观察。 */
-
-//  uint16_t hold_target = 0U;
-//  uint16_t hold_goal_readback = 0U;
-//  uint16_t hold_feedback = 0U;
-//  uint8_t hold_mode = 0xFFU;
-//  uint8_t hold_torque = 0xFFU;
-//  uint8_t hold_status = 0xFFU;
-//  FtServoResult hold_result = FT_SERVO_OK;
-  
-  
-  // Ft_SetPosition(servo_id,2048,5,5);
-
   /* 关闭扭矩 */
-  r_torque = ft_servo_set_torque(servo_id, 0U, &torque_status);
-
+  r_torque = ft_servo_set_torque(loop->id, 0U, &torque_status);
   /* 设置 PWM 模式 */
-  r_mode = ft_servo_set_mode(servo_id, FT_SMS_MODE_PWM, &status);
-
-
-
+  r_mode = ft_servo_set_mode(loop->id, FT_SMS_MODE_PWM, &status);
   /* 开启扭矩，开始输出 */
-  r_torque = ft_servo_set_torque(servo_id, 1U, &torque_status);
+  r_torque = ft_servo_set_torque(loop->id, 1U, &torque_status);
+  time_last = HAL_GetTick();
 
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+  while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  
-	  /* 写入 PWM 参数 */
-	r_pwm = ft_servo_write_pwm(servo_id, pwm_value, &pwm_status);
-	  /* 读取电流 */
-	r_current = ft_servo_read_current(servo_id, &current_value, &current_status);
-	r_voltage = ft_servo_read_voltage(servo_id, &voltage_value, &voltage_status);
-	real_current_value=(float)current_value*6.5f;
-	  
-	  HAL_Delay(100);
-// 	  if (hold_request == 1U) {
-//     /* 清除请求，本次只执行一次。 */
-//     hold_request = 0U;
 
-//     do {
-//         /* 第一步：确认仍是位置模式。 */
-//         hold_step = 1U;
-//         hold_result = ft_servo_read_mode(
-//             servo_id, &hold_mode, &hold_status);
-//         if (hold_result != FT_SERVO_OK ||
-//             hold_status != 0U ||
-//             hold_mode != FT_SMS_MODE_POSITION) {
-//             break;
-//         }
-
-//         /* 第二步：读取最新位置作为目标。 */
-//         hold_step = 2U;
-//         hold_result = ft_servo_read_position(
-//             servo_id, &hold_target, &hold_status);
-//         if (hold_result != FT_SERVO_OK || hold_status != 0U) {
-//             break;
-//         }
-
-//         /* 确认此前读取的上下限有效，且当前位置在其中。 */
-//         if (r_min != FT_SERVO_OK || r_max != FT_SERVO_OK ||
-//             min_status != 0U || max_status != 0U ||
-//             min_position > max_position ||
-//             hold_target < min_position ||
-//             hold_target > max_position) {
-//             break;
-//         }
-
-//         /* 第三步：只写目标位置寄存器。 */
-//         hold_step = 3U;
-//         hold_result = ft_servo_write_word(
-//             servo_id, FT_SMS_REG_GOAL_POS_L,
-//             hold_target, &hold_status);
-//         if (hold_result != FT_SERVO_OK || hold_status != 0U) {
-//             break;
-//         }
-
-//         /* 第四步：读回目标，确认写入生效。 */
-//         hold_step = 4U;
-//         hold_result = ft_servo_read_word(
-//             servo_id, FT_SMS_REG_GOAL_POS_L,
-//             &hold_goal_readback, &hold_status);
-//         if (hold_result != FT_SERVO_OK ||
-//             hold_status != 0U ||
-//             hold_goal_readback != hold_target) {
-//             break;
-//         }
-
-//         /* 第五步：开启扭矩，保持刚设置的位置。 */
-//         hold_step = 5U;
-//         hold_result = ft_servo_set_torque(
-//             servo_id, 1U, &hold_status);
-//         if (hold_result != FT_SERVO_OK || hold_status != 0U) {
-//             break;
-//         }
-
-//         /* 第六步：确认扭矩使能值为 1。 */
-//         hold_step = 6U;
-//         hold_result = ft_servo_read_byte(
-//             servo_id, FT_SMS_REG_TORQUE_ENABLE,
-//             &hold_torque, &hold_status);
-//         if (hold_result != FT_SERVO_OK ||
-//             hold_status != 0U || hold_torque != 1U) {
-//             break;
-//         }
-
-//         /* 第七步：等待后采样位置反馈。 */
-//         hold_step = 7U;
-//         HAL_Delay(500);
-//         hold_result = ft_servo_read_position(
-//             servo_id, &hold_feedback, &hold_status);
-//         if (hold_result != FT_SERVO_OK || hold_status != 0U) {
-//             break;
-//         }
-
-//         hold_step = 8U;  /* 本轮测试完成。 */
-//     } while (0);
-// }
+    Channel[0] = (float)loop->measured_speed;
+    Channel[1] = (float)loop->pid.Config.K_P;
+    Channel[2] = (float)loop->pid.Config.K_I;
+    Channel[3] = (float)loop->pid.Config.K_D;
+    Channel[4] = target_speed;
+    time_now = HAL_GetTick();
+    D_T = (float)(time_now - time_last);
+    if(D_T >= 10.0f){
+      time_last = time_now;
+      ServoSpeedLoop_Update(loop, target_speed, D_T / 1000.0f, &pid_status);
+    }
+//    Vofa_Send(Channel, 5U);
+    
+    
   }
-  
+
   /* USER CODE END 3 */
 }
 

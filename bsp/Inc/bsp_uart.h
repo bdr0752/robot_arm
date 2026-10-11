@@ -27,7 +27,9 @@ struct BspUartManager {
     BspUartRxCallback callback;   /* 可选的用户回调 */
 };
 
-/* 绑定已有 huart 和缓冲区；不初始化 UART，也不分配缓冲区。 */
+/* 绑定已初始化且具有 RX DMA 的 huart；不初始化 UART，也不分配缓冲区。
+ * 绑定成功后不得修改 huart、rx_buffer 和 rx_capacity。
+ * 以下操作要求传入已绑定对象及有效数据/输出地址，不重复检查这些前置条件。 */
 BspUartResult Bsp_Uart_Attach(BspUartManager *manager,
                              UART_HandleTypeDef *huart,
                              uint8_t *rx_buffer, uint16_t rx_capacity);
@@ -35,8 +37,8 @@ BspUartResult Bsp_Uart_Attach(BspUartManager *manager,
 void Bsp_Uart_SetRxCallback(BspUartManager *manager, BspUartRxCallback callback);
 /* 清除上次状态并启动 DMA 接收；收到空闲帧或填满缓冲区时结束。 */
 BspUartResult Bsp_Uart_StartReceiveToIdle(BspUartManager *manager);
-/* 阻塞发送；HAL_UART_Transmit 返回时最后一个字节已发送完毕。 */
-BspUartResult Bsp_Uart_Transmit(BspUartManager *manager,
+/* 调用 HAL 阻塞发送，不返回发送状态；timeout_ms 仍限制 HAL 等待时间。 */
+void Bsp_Uart_Transmit(BspUartManager *manager,
                                 uint8_t *data, uint16_t length,
                                 uint32_t timeout_ms);
 /* 等待中断设置 rx_done；超时会停止接收，成功时通过 size 返回实际长度。 */

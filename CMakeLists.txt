@@ -46,13 +46,17 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     bsp/Src/bsp_board.c
-    bsp/Src/servo_bus.c
+    bsp/Src/bsp_dwt.c
+    bsp/Src/bsp_ws2812.c
+    bsp/Src/bsp_rs485.c
+    driver/Src/ft_servo_bus.c
     driver/Src/ft_Servo.c
     driver/Src/ft_servo_protocol.c
     driver/Src/ws2812.c
     bsp/Src/bsp_uart.c
     Controller/Src/PID.c
     Controller/Src/servo_speed_loop.c
+    app/Src/vofa.c
 )
 
 # Add include paths
@@ -61,6 +65,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     bsp/Inc
     driver/Inc
     Controller/Inc
+    app/Inc
 )
 
 # Add project symbols (macros)
@@ -72,6 +77,11 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
 list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 
 # Add linked libraries
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    # FireWater 的 snprintf 浮点格式需要 newlib-nano 浮点打印支持。
+    target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-u" "_printf_float")
+endif()
+
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
 

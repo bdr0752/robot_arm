@@ -5,6 +5,7 @@
 
 static uint16_t feedback_speed;
 static int16_t commanded_pwm;
+static FtServoResult write_result = FT_SERVO_OK;
 
 /**
   * @brief  提供带 BIT15 方向位的速度反馈，代替实际串口。
@@ -26,18 +27,18 @@ FtServoResult ft_servo_read_speed(uint8_t id, uint16_t *speed, uint8_t *status)
   * @param  id: 测试舵机 ID。
   * @param  pwm: PWM 原始值。
   * @param  status: 应答状态输出。
-  * @retval FT_SERVO_OK。
+  * @retval write_result 指定的通信结果。
   */
 FtServoResult ft_servo_write_pwm(uint8_t id, int16_t pwm, uint8_t *status)
 {
     assert(id == 6U);
     commanded_pwm = pwm;
     *status = 0U;
-    return FT_SERVO_OK;
+    return write_result;
 }
 
 /**
-  * @brief  验证正反转速度解码及 PWM 输出限幅。
+  * @brief  验证速度解码、PWM 限幅及写入失败时 PID 仍直接更新。
   * @param  无。
   * @retval 0 表示所有检查通过。
   */
@@ -67,5 +68,16 @@ int main(void)
 
     assert(ServoSpeedLoop_Update(&loop, 1000.0f, 0.02f, &status) == FT_SERVO_OK);
     assert(commanded_pwm == 200 && loop.pwm == 200);
+
+    /* 写入超时也保留本轮计算结果，不回退 PID 历史。 */
+    PID_Reset(&loop.pid);
+    loop.pid.Config.K_I = 1.0f;
+    feedback_speed = 0U;
+    write_result = FT_SERVO_TIMEOUT;
+    assert(ServoSpeedLoop_Update(&loop, 10.0f, 0.02f, &status) == FT_SERVO_TIMEOUT);
+    assert(loop.pid.Target == 10.0f && loop.pid.Now == 0.0f);
+    assert(loop.pid.I_Out > 0.0f && loop.pid.Has_Pre_Now);
+    assert(loop.target_speed == 10.0f && loop.measured_speed == 0);
+    assert(loop.pwm == 10 && commanded_pwm == 10);
     return 0;
 }

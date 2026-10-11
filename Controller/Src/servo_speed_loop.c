@@ -2,7 +2,6 @@
 
 #include "ft_servo_protocol.h"
 
-#include <math.h>
 #include <stddef.h>
 
 /**
@@ -31,19 +30,17 @@ bool ServoSpeedLoop_Init(ServoSpeedLoop *loop, uint8_t id,
 /**
   * @brief  读取速度，计算 PID，再写入 PWM 开环输出。
   * @param  loop: 已成功初始化的对象，舵机须预先处于 PWM 模式且启用扭矩。
-  * @param  target_speed: 带符号速度原始值，范围 -32767～32767。
+  * @param  target_speed: 目标速度，与反馈使用相同的寄存器原始单位。
   * @param  D_T: 两次有效反馈间隔，单位秒，必须大于零。
   * @param  status: 必须非 NULL，接收读或写应答状态；通信失败可能保持 0xFF。
   * @retval 基础驱动结果；还需检查 status，舵机报告错误时不继续控制。
   * @note   SMS/STS 速度反馈用 BIT15 表示方向，不是二进制补码。
-  *         pwm 保存最近一次成功下发的值；不自动停机或关闭扭矩。
+  *         直接更新 PID 历史；pwm 保存本次计算出的输出，不代表发送成功。
   */
 FtServoResult ServoSpeedLoop_Update(ServoSpeedLoop *loop, float target_speed,
                                      float D_T, uint8_t *status)
 {
-    if (loop == NULL || status == NULL || loop->id > 253U ||
-        !isfinite(target_speed) || target_speed < -32767.0f ||
-        target_speed > 32767.0f || !isfinite(D_T) || D_T <= 0.0f) {
+    if (loop == NULL || status == NULL) {
         return FT_SERVO_BAD_ARGUMENT;
     }
 
@@ -58,21 +55,17 @@ FtServoResult ServoSpeedLoop_Update(ServoSpeedLoop *loop, float target_speed,
         measured_speed = (int16_t)-measured_speed;
     }
 
-    /* 写成功后才提交 PID 历史，避免失败发送被当成已执行控制。 */
-    Struct_PID pid_next = loop->pid;
+    /* 使用当前反馈直接计算 PID。 */
     float pwm_out;
-    if (!PID_Adjust(&pid_next, target_speed, (float)measured_speed,
+    if (!PID_Adjust(&loop->pid, target_speed, (float)measured_speed,
                     D_T, &pwm_out)) {
         return FT_SERVO_BAD_ARGUMENT;
     }
-    int16_t pwm = (int16_t)pwm_out;
+    loop->target_speed = target_speed;
+    loop->measured_speed = measured_speed;
+    loop->pwm = (int16_t)pwm_out;
+
+    /* 发送计算结果，返回实际通信结果。 */
     *status = 0xFFU;
-    result = ft_servo_write_pwm(loop->id, pwm, status);
-    if (result == FT_SERVO_OK && *status == 0U) {
-        loop->pid = pid_next;
-        loop->target_speed = target_speed;
-        loop->measured_speed = measured_speed;
-        loop->pwm = pwm;
-    }
-    return result;
+    return ft_servo_write_pwm(loop->id, loop->pwm, status);
 }
