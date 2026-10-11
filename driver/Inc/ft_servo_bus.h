@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     FT_SERVO_BUS_OK = 0,
     FT_SERVO_BUS_TIMEOUT = -1,
@@ -19,5 +23,9 @@ typedef enum {
  */
 FtServoBusResult ft_servo_bus_exchange(uint8_t *tx, uint16_t tx_length,
                                   uint8_t *rx, uint16_t rx_length);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

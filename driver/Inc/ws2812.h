@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define WS2812_LED_COUNT 1U
 
 typedef struct {
@@ -15,5 +19,9 @@ void ws2812_init(void);
 void ws2812_set_pixel(uint32_t index, Ws2812Color color);
 void ws2812_set_all(Ws2812Color color);
 void ws2812_show(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

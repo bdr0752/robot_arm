@@ -1,45 +1,66 @@
 # BSP 模块说明
 
-## 职责划分
+## 结构
 
-| 模块 | 职责 |
+手写 BSP 使用 C++ 类与 `BSP` 命名空间，参考 RMPP 的静态外设类与回调结构。
+CubeMX、HAL、舵机协议和 PID 继续使用 C。
+
+| 文件 | 职责 |
 | --- | --- |
-| `bsp_board` | 集中初始化 GPIO、DMA、UART，绑定串口与 RS485 资源 |
-| `bsp_uart` | 使用已初始化的 `huart`，管理发送、DMA 空闲接收及 HAL 回调 |
-| `bsp_dwt` | 初始化 CPU 周期计数器，提供周期读取与忙等待 |
-| `bsp_ws2812` | 本板 PA7 的 WS2812 波形输出，不管理颜色缓存 |
-| `bsp_rs485` | 绑定 UART 与方向引脚，发送前切换到 TX，发送调用返回后恢复 RX |
+| `bsp_board.hpp/.cpp` | `BSP::Init()` 集中初始化硬件和 BSP 模块 |
+| `bsp_uart.hpp/.cpp` | `UART1`、`UART3` 的 DMA 接收、回调分发与发送 |
+| `bsp_rs485.hpp/.cpp` | USART3 + PB14 的方向控制与发送 |
+| `bsp_dwt.hpp/.cpp` | CPU 周期计数、周期等待与系统毫秒计数 |
+| `bsp_ws2812.hpp/.cpp` | PA7 的灯珠波形输出 |
+| `bsp_board.h` | 供 `main.c` 调用的单个初始化入口 |
 
-`Inc` 存放头文件，`Src` 存放实现文件。HAL 和寄存器操作由 BSP 实现。
+## 使用
 
-## 初始化与调用
+在 `HAL_Init()` 和时钟配置后调用一次 `Bsp_Board_Init()`，C++ 使用 `BSP::Init()`。
+GPIO 和 DMA 先初始化，再初始化 USART3/USART1，最后启动 BSP 模块。
+UART 的 `Init()` 只启动接收，不配置波特率、引脚和时钟。
 
-在 `HAL_Init()`、`SystemClock_Config()` 后调用一次 `Bsp_Board_Init()`。
-该函数先初始化 GPIO 与 DMA，再初始化串口、设置初始电平、启用 DWT
-并绑定 UART 管理对象。UART 接收仍由使用者启动。
+```cpp
+#include "bsp_uart.hpp"
 
-舵机调用关系：`ft_servo_protocol → driver/ft_servo_bus → bsp_rs485 → bsp_uart / GPIO`。
-`ft_servo_bus` 负责准备接收、等待舵机应答、接收超时和长度检查；
-`bsp_rs485` 只负责通用方向切换与发送，不识别设备协议。
-接收由总线使用者通过其绑定的 UART 管理对象启动；本板绑定 USART3 与 PB14。
-灯珠调用关系：`driver/ws2812 → bsp_ws2812 → bsp_dwt / GPIO`。
-`driver/ws2812` 负责颜色缓存与 GRB 转换，`bsp_ws2812` 负责实际波形输出。
-原 `bsp_board_ws2812_send_grb()` 保留为兼容入口，新代码使用
-`Bsp_Ws2812_SendGrb()`。
+void Receive(const uint8_t *data, uint16_t size);
 
-## 当前接收约定
+BSP::UART1::RegisterCallback(Receive);
+BSP::UART1::Transmit(data, size);
+BSP::RS485::Transmit(data, size);
+```
 
-本次拆分保留 UART 的单次 DMA 接收、阻塞发送和舵机请求应答方式。
-UART 管理对象仍公开状态字段，VOFA 仍依赖这些字段；接收接口封装另行调整。
+每路串口仅注册一个回调；重复注册替换原回调。回调运行在中断中，数据只在
+回调期间有效，使用者须在回调中处理或复制；`data == 0` 表示接收错误。
+普通 DMA 的空闲、写满事件均交付数据并重启接收，半满事件忽略。
+使用者不要在回调内发送、等待或自行重启 DMA。
 
-UART 在 `Bsp_Uart_Attach()` 时检查句柄、RX DMA、缓冲区及容量。
-后续收发要求使用已绑定对象和有效参数，不重复检查内部配置。
-发送直接调用 HAL，不转换或返回发送状态。无应答的总线调用返回成功仅表示
-已调用发送接口。协议校验、接收长度和接收超时处理仍由相应模块执行。
+## 职责与约定
 
-## 时序与移植
+UART 不再包含管理对象注册表、公开接收状态、阻塞等待及结果转换。
+发送直接调用阻塞 HAL，不返回发送状态。沿用阻塞方式是为了支持现有栈缓冲区
+和 RS485 发送后的方向切换；若改成中断发送，须同时处理缓冲区寿命和完成回调。
+回调用函数指针，每路只有一个使用者，不引入动态分配、回调列表或运行时间统计。
 
-WS2812 沿用原有脉宽和 1 ms 锁存等待，发送期间关闭中断后恢复原状态。
-DWT 的周期读取、等待采用内联函数，避免在每一位输出中增加普通函数调用。
-软件输出脉宽仍受编译结果影响，拆分后须在硬件上复测灯珠与串口通信。
-移植时核对 GPIO、DWT 可用性、系统时钟及 DMA 缓冲区内存位置。
+`ft_servo_protocol → driver/ft_servo_bus.cpp → BSP::RS485 / UART3`。
+舵机总线复制应答并负责 20 ms 超时等待与长度检查，协议层负责帧校验。
+VOFA 使用 UART1 回调复制数据，主循环解析文本，不访问 DMA 缓冲区或接收标志。
+
+## 构建与验证
+
+CMake 使用 C11/C++11；Keil 已更新 `.cpp/.hpp` 列表，保持现有 ARMCC5 配置，
+本次类和模板写法不依赖 C++11 专有语法。Keil 编译仍待验证。
+DMA 缓冲区沿用 32 字节对齐及 `.dma_buffer` / RAM_D2 配置；Keil 的实际放置
+和启用 DCache 后的一致性须另行核对。
+
+DMA 回调处理与重启之间仍有空窗，不能保证连续高速接收无丢失。
+WS2812 沿用软件时序、发送期间关闭中断及 1 ms 锁存等待，需要硬件复测。
+主机测试和编译通过不等于串口或运动已在硬件验证。
+
+主机端总线测试直接编译实际 UART、RS485 与舵机总线实现，用 HAL 替身验证
+方向顺序、应答、长度错误、超时与接收错误：
+
+```powershell
+g++ -std=c++11 -Wall -Wextra -Werror -Itests/stubs/bsp -Ibsp/Inc -Idriver/Inc tests/test_ft_servo_bus.cpp driver/Src/ft_servo_bus.cpp bsp/Src/bsp_uart.cpp bsp/Src/bsp_rs485.cpp -o build/test_ft_servo_bus.exe
+./build/test_ft_servo_bus.exe
+```

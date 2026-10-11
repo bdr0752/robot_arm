@@ -30,7 +30,6 @@
 #include "vofa.h"
 #include <stdint.h>
 #include "servo_speed_loop.h"
-#include "bsp_uart.h"
 #include <string.h>
 #include <math.h>
 
@@ -241,7 +240,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   /* USER CODE BEGIN 2 */
-  /* 板级初始化内部配置 GPIO、DMA、USART3、USART1，并绑定串口管理对象。 */
+  /* 板级初始化配置 GPIO、DMA、USART3/USART1，并启动 C++ BSP 模块。 */
   Bsp_Board_Init();
 
 //  BspUartManager *Debug_Uart = Bsp_Board_DebugUart();

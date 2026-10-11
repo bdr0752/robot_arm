@@ -545,44 +545,49 @@
           <GroupName>bsp</GroupName>
           <Files>
             <File>
-              <FileName>bsp_rs485.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\bsp\Src\bsp_rs485.c</FilePath>
-            </File>
-            <File>
-              <FileName>bsp_rs485.h</FileName>
+              <FileName>bsp_board.hpp</FileName>
               <FileType>5</FileType>
-              <FilePath>..\bsp\Inc\bsp_rs485.h</FilePath>
+              <FilePath>..\bsp\Inc\bsp_board.hpp</FilePath>
             </File>
             <File>
-              <FileName>bsp_dwt.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\bsp\Src\bsp_dwt.c</FilePath>
+              <FileName>bsp_rs485.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\bsp\Src\bsp_rs485.cpp</FilePath>
             </File>
             <File>
-              <FileName>bsp_dwt.h</FileName>
+              <FileName>bsp_rs485.hpp</FileName>
               <FileType>5</FileType>
-              <FilePath>..\bsp\Inc\bsp_dwt.h</FilePath>
+              <FilePath>..\bsp\Inc\bsp_rs485.hpp</FilePath>
             </File>
             <File>
-              <FileName>bsp_ws2812.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\bsp\Src\bsp_ws2812.c</FilePath>
+              <FileName>bsp_dwt.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\bsp\Src\bsp_dwt.cpp</FilePath>
             </File>
             <File>
-              <FileName>bsp_ws2812.h</FileName>
+              <FileName>bsp_dwt.hpp</FileName>
               <FileType>5</FileType>
-              <FilePath>..\bsp\Inc\bsp_ws2812.h</FilePath>
+              <FilePath>..\bsp\Inc\bsp_dwt.hpp</FilePath>
             </File>
             <File>
-              <FileName>bsp_board.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\bsp\Src\bsp_board.c</FilePath>
+              <FileName>bsp_ws2812.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\bsp\Src\bsp_ws2812.cpp</FilePath>
             </File>
             <File>
-              <FileName>bsp_uart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\bsp\Src\bsp_uart.c</FilePath>
+              <FileName>bsp_ws2812.hpp</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\bsp\Inc\bsp_ws2812.hpp</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_board.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\bsp\Src\bsp_board.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_uart.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\bsp\Src\bsp_uart.cpp</FilePath>
             </File>
             <File>
               <FileName>bsp_board.h</FileName>
@@ -590,9 +595,9 @@
               <FilePath>..\bsp\Inc\bsp_board.h</FilePath>
             </File>
             <File>
-              <FileName>bsp_uart.h</FileName>
+              <FileName>bsp_uart.hpp</FileName>
               <FileType>5</FileType>
-              <FilePath>..\bsp\Inc\bsp_uart.h</FilePath>
+              <FilePath>..\bsp\Inc\bsp_uart.hpp</FilePath>
             </File>
           </Files>
         </Group>
@@ -600,9 +605,9 @@
           <GroupName>driver</GroupName>
           <Files>
             <File>
-              <FileName>ft_servo_bus.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\driver\Src\ft_servo_bus.c</FilePath>
+              <FileName>ft_servo_bus.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\driver\Src\ft_servo_bus.cpp</FilePath>
             </File>
             <File>
               <FileName>ft_servo_bus.h</FileName>
@@ -645,9 +650,9 @@
               <FilePath>..\driver\Src\ft_servo_protocol.c</FilePath>
             </File>
             <File>
-              <FileName>ws2812.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\driver\Src\ws2812.c</FilePath>
+              <FileName>ws2812.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>..\driver\Src\ws2812.cpp</FilePath>
             </File>
           </Files>
         </Group>
@@ -680,9 +685,9 @@
           <GroupName>app</GroupName>
           <Files>
             <File>
-              <FileName>vofa.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../app/Src/vofa.c</FilePath>
+              <FileName>vofa.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>../app/Src/vofa.cpp</FilePath>
             </File>
             <File>
               <FileName>vofa.h</FileName>

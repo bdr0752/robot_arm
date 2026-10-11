@@ -6,7 +6,7 @@
 
 ## 项目结构与模块
 
-这是 STM32H723VGTx 的 CubeMX/CMake 固件工程，也提供 `MDK-ARM/robot_arm.uvprojx`。`robot_arm.ioc` 保存外设配置；`Core` 放应用入口与生成代码；`bsp` 中 `bsp_board` 集中初始化并绑定资源，`bsp_uart` 管理 DMA 空闲接收，`bsp_rs485` 管理方向切换与发送，`bsp_dwt` 管理周期计时，`bsp_ws2812` 输出灯珠波形；`driver` 中 `ft_servo_bus` 管理舵机请求应答，`ft_servo_protocol` 处理协议及寄存器原始值，`ft_Servo` 提供模式切换封装与角度换算，另有 WS2812 颜色驱动；`tests` 放主机端测试；`TASKS.md` 记录验证进度。新增 `.c` 时同步核对 CMake 与 Keil 的源文件列表、头文件路径。
+这是 STM32H723VGTx 的 CubeMX/CMake 固件工程，也提供 `MDK-ARM/robot_arm.uvprojx`。`robot_arm.ioc` 保存外设配置；`Core` 放应用入口与生成代码；`bsp` 中 `bsp_board` 集中初始化并绑定资源，`bsp_uart` 以 `BSP::UART1/UART3` 静态类管理 DMA 空闲接收及回调，`bsp_rs485` 管理方向切换与发送，`bsp_dwt` 管理周期计时，`bsp_ws2812` 输出灯珠波形；`driver` 中 `ft_servo_bus` 管理舵机请求应答，`ft_servo_protocol` 处理协议及寄存器原始值，`ft_Servo` 提供模式切换封装与角度换算，另有 WS2812 颜色驱动；`tests` 放主机端测试；`TASKS.md` 记录验证进度。新增 `.c/.cpp` 时同步核对 CMake 与 Keil 的源文件列表、头文件路径。
 
 ## 构建、测试与开发命令
 
@@ -21,11 +21,11 @@ cmake --build --preset Debug
 
 ## 代码风格与命名
 
-CMake 使用 C11；修改跨工具链代码时核对 Keil 配置。CubeMX 生成文件中的手写代码放在 `/* USER CODE BEGIN ... */` 区域。沿用模块前缀，例如 `ft_servo_read_position()`、`Bsp_Uart_Attach()`；自写函数在定义前使用 `@brief`、`@param`、`@retval` 说明作用与行为。寄存器地址、单位和串口参数须依据实际器件资料。测试示例保持简短，不擅自引入复杂测试管理框架。
+CMake 使用 C11/C++11；手写 BSP 使用 `BSP` 命名空间与 `.hpp/.cpp`，生成代码保持 C；修改跨工具链代码时核对 Keil 配置。CubeMX 生成文件中的手写代码放在 `/* USER CODE BEGIN ... */` 区域。沿用模块前缀，例如 `ft_servo_read_position()`、`BSP::UART1::Transmit()`；自写函数在定义前使用 `@brief`、`@param`、`@retval` 说明作用与行为。寄存器地址、单位和串口参数须依据实际器件资料。测试示例保持简短，不擅自引入复杂测试管理框架。
 
 ## 测试要求
 
-目前没有测试框架、覆盖率要求或 `ctest` 测试项。`tests/test_ft_servo_protocol.c` 检查组帧与校验；`tests/test_ft_servo_motion.c` 检查角度换算；新增封装的覆盖情况须单独核对。固件修改提交前至少完成 Debug 构建并检查警告。编译和主机测试不代表硬件已验证。单播调用同时检查函数返回值和舵机状态字节；广播成功仅表示发送完成。运动测试先确认型号、机械行程、负载与停止办法，避免新增上电自动运动。
+目前没有测试框架、覆盖率要求或 `ctest` 测试项。`tests/test_ft_servo_protocol.c` 检查组帧与校验；`tests/test_ft_servo_motion.c` 检查角度换算；新增封装的覆盖情况须单独核对。固件修改提交前至少完成 Debug 构建并检查警告。编译和主机测试不代表硬件已验证。单播调用同时检查函数返回值和舵机状态字节；广播成功仅表示调用了发送接口。运动测试先确认型号、机械行程、负载与停止办法，避免新增上电自动运动。
 
 ## 提交与合并请求
 
