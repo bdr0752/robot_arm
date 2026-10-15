@@ -5,7 +5,6 @@
 #include <string.h>
 
 #define VOFA_TX_BUFFER_SIZE 256U
-#define VOFA_TX_TIMEOUT_MS 100U
 #define VOFA_RX_BUFFER_SIZE 256U
 
 static bool Initialized;
@@ -55,10 +54,10 @@ Enum_Vofa_Result Vofa_Init(void)
 }
 
 /**
- * @brief 将通道数组编码为 FireWater 采样帧并阻塞发送。
+ * @brief 将通道数组编码为 FireWater 采样帧并启动非阻塞 DMA 发送。
  * @param Channels: 浮点通道数组，数值须有限。
  * @param Count: 通道数量，范围 1～VOFA_MAX_CHANNELS。
- * @retval VOFA_OK、参数错误或缓冲区不足；不报告 UART 发送状态。
+ * @retval VOFA_OK 表示 DMA 已启动；忙或启动失败返回 VOFA_UART_ERROR。
  * @note 格式为 ch0,ch1,...,chN\n；不重定向 printf，不发送字符串结尾 NUL。
  */
 Enum_Vofa_Result Vofa_Send(const float *Channels, uint8_t Count)
@@ -86,9 +85,8 @@ Enum_Vofa_Result Vofa_Send(const float *Channels, uint8_t Count)
     }
     Tx_Buffer[Tx_Length++] = '\n';
 
-    BSP::UART1::Transmit((const uint8_t *)Tx_Buffer,
-                      Tx_Length, VOFA_TX_TIMEOUT_MS);
-    return VOFA_OK;
+    return BSP::UART1::Transmit((const uint8_t *)Tx_Buffer, Tx_Length)
+        ? VOFA_OK : VOFA_UART_ERROR;
 }
 
 /**

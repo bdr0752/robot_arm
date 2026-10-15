@@ -8,6 +8,7 @@ typedef struct {
     volatile float K_P;             /* 比例增益。 */
     volatile float K_I;             /* 积分增益。 */
     volatile float K_D;             /* 微分增益。 */
+    volatile float K_F;             /* 前馈增益。 */
 
     float Out_Min;         /* PID 总输出下限。 */
     float Out_Max;         /* PID 总输出上限。 */
@@ -28,6 +29,7 @@ typedef struct {
     float P_Out;
     float I_Out;
     float D_Out;
+    float F_OUT;
     float Out;
 
     float Pre_Now;

@@ -6,6 +6,8 @@ namespace BSP {
     class RS485 {
     public:
         static void Init();
-        static void Transmit(const uint8_t *data, uint16_t size, uint32_t timeout_ms = 100U);
+        static bool Transmit(const uint8_t *data, uint16_t size);
+    private:
+        static void ReceiveDirection();
     };
 }

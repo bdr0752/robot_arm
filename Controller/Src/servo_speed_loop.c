@@ -63,7 +63,7 @@ FtServoResult ServoSpeedLoop_Update(ServoSpeedLoop *loop, float target_speed,
     }
     loop->target_speed = target_speed;
     loop->measured_speed = measured_speed;
-    loop->pwm = (int16_t)pwm_out;
+    loop->pwm = -(int16_t)pwm_out;
 
     /* 发送计算结果，返回实际通信结果。 */
     *status = 0xFFU;

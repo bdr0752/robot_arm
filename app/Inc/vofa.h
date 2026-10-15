@@ -21,8 +21,9 @@ typedef enum {
 
 /* Bsp_Board_Init() 之后调用；注册 USART1 的唯一接收回调。 */
 Enum_Vofa_Result Vofa_Init(void);
-/* 阻塞发送 1～8 个通道，ASCII CSV、换行结尾，保留 6 位有效数字。
- * VOFA_OK 表示编码并调用发送接口，不代表 UART 发送状态。 */
+/* 非阻塞 DMA 发送 1～8 个通道，ASCII CSV、换行结尾，保留 6 位有效数字。
+ * VOFA_OK 表示 DMA 已启动，不代表发送完成；忙或启动失败返回 VOFA_UART_ERROR。
+ * 函数返回后 Channels 可以修改或释放。 */
 Enum_Vofa_Result Vofa_Send(const float *Channels, uint8_t Count);
 /* 非阻塞读取一行，不含 CR/LF；无完整行返回 VOFA_EMPTY。
  * 部分行跨 DMA 数据块保留；主循环持续读取，直至返回 VOFA_EMPTY。

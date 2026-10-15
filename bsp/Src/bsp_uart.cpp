@@ -7,6 +7,26 @@ __attribute__((section(".dma_buffer"),
                aligned(32))) uint8_t BSP::UART3::rxbuf[RXBUF_SIZE];
 BSP::UartCallback BSP::UART1::callback = 0;
 BSP::UartCallback BSP::UART3::callback = 0;
+__attribute__((section(".dma_buffer"),
+               aligned(32))) uint8_t BSP::UART1::txbuf[TXBUF_SIZE];
+__attribute__((section(".dma_buffer"),
+               aligned(32))) uint8_t BSP::UART3::txbuf[TXBUF_SIZE];
+volatile bool BSP::UART1::tx_busy = false;
+volatile bool BSP::UART3::tx_busy = false;
+BSP::UartTxCallback BSP::UART1::tx_callback = 0;
+BSP::UartTxCallback BSP::UART3::tx_callback = 0;
+
+/**
+ * @brief 分发 UART TC 发送完成事件，DMA 传输完成后仍须等待 UART TC。
+ * @param huart 串口句柄。
+ * @retval 无
+ */
+extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
+  if (huart == &huart1)
+    BSP::UART1::OnTransmit();
+  else if (huart == &huart3)
+    BSP::UART3::OnTransmit();
+}
 
 /**
  * @brief 分发空闲与写满事件，交付后继续接收。

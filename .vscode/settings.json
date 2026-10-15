@@ -14,5 +14,6 @@
     ],
     "cmake.preferredGenerators": [
         "Ninja"
-    ]
+    ],
+    "emberprobe.sampleFrequencyHz": 120
 }

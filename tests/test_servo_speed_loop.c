@@ -60,14 +60,14 @@ int main(void)
 
     feedback_speed = 100U;
     assert(ServoSpeedLoop_Update(&loop, 150.0f, 0.02f, &status) == FT_SERVO_OK);
-    assert(status == 0U && loop.measured_speed == 100 && commanded_pwm == 50);
+    assert(status == 0U && loop.measured_speed == 100 && commanded_pwm == -50);
 
     feedback_speed = 0x8064U;
     assert(ServoSpeedLoop_Update(&loop, -150.0f, 0.02f, &status) == FT_SERVO_OK);
-    assert(status == 0U && loop.measured_speed == -100 && commanded_pwm == -50);
+    assert(status == 0U && loop.measured_speed == -100 && commanded_pwm == 50);
 
     assert(ServoSpeedLoop_Update(&loop, 1000.0f, 0.02f, &status) == FT_SERVO_OK);
-    assert(commanded_pwm == 200 && loop.pwm == 200);
+    assert(commanded_pwm == -200 && loop.pwm == -200);
 
     /* 写入超时也保留本轮计算结果，不回退 PID 历史。 */
     PID_Reset(&loop.pid);
@@ -78,6 +78,6 @@ int main(void)
     assert(loop.pid.Target == 10.0f && loop.pid.Now == 0.0f);
     assert(loop.pid.I_Out > 0.0f && loop.pid.Has_Pre_Now);
     assert(loop.target_speed == 10.0f && loop.measured_speed == 0);
-    assert(loop.pwm == 10 && commanded_pwm == 10);
+    assert(loop.pwm == -10 && commanded_pwm == -10);
     return 0;
 }

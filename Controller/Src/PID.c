@@ -37,7 +37,8 @@ static bool PID_Check_Config(const Struct_PID_Config *config)
     /* 增益必须是有限的非负数。 */
     if (!isfinite(config->K_P) || config->K_P < 0.0f ||
         !isfinite(config->K_I) || config->K_I < 0.0f ||
-        !isfinite(config->K_D) || config->K_D < 0.0f) {
+        !isfinite(config->K_D) || config->K_D < 0.0f ||
+        !isfinite(config->K_F) || config->K_F < 0.0f) {
         return false;
     }
 
@@ -90,6 +91,7 @@ void PID_Reset(Struct_PID *pid)
     pid->P_Out = 0.0f;
     pid->I_Out = 0.0f;
     pid->D_Out = 0.0f;
+    pid->F_OUT = 0.0f;
     pid->Out = 0.0f;
 
     pid->Pre_Now = 0.0f;
@@ -143,9 +145,10 @@ bool PID_Adjust(Struct_PID *pid, float Target, float Now, float D_T, float *Out)
         }
     }
     float d_out = config->K_D * d_filter;
+    float f_out = config->K_F * Target;
 
     /* 4. 合成输出：饱和时，禁止积分继续向饱和方向增加。 */
-    float out = p_out + i_out + d_out;
+    float out = p_out + i_out + d_out + f_out;
     if (!isfinite(error) || !isfinite(d_filter) || !isfinite(out)) {
         return false;
     }
@@ -157,11 +160,13 @@ bool PID_Adjust(Struct_PID *pid, float Target, float Now, float D_T, float *Out)
 
     if (upper_saturation || lower_saturation) {
         i_out = pid->I_Out;
-        out = p_out + i_out + d_out;
+        out = p_out + i_out + d_out + f_out;
     }
     if (!isfinite(out)) {
         return false;
     }
+
+    
     out = PID_Limit(out, config->Out_Min, config->Out_Max);
 
     /* 5. 更新结果和历史：各项输出可直接用于调试观察。 */
@@ -175,6 +180,7 @@ bool PID_Adjust(Struct_PID *pid, float Target, float Now, float D_T, float *Out)
     pid->Pre_Now = Now;
     pid->D_Filter = d_filter;
     pid->Has_Pre_Now = true;
+    pid->F_OUT = f_out;
 
     *Out = out;
     return true;

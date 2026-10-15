@@ -5,11 +5,14 @@
 #include <string.h>
 
 static DMA_HandleTypeDef Rx_Dma;
-UART_HandleTypeDef huart1 = {&Rx_Dma, 0, 0, HAL_UART_RXEVENT_IDLE};
-UART_HandleTypeDef huart3 = {&Rx_Dma, 0, 0, HAL_UART_RXEVENT_IDLE};
+UART_HandleTypeDef huart1 = {&Rx_Dma, 0, 0, HAL_UART_RXEVENT_IDLE, HAL_UART_STATE_READY, HAL_UART_STATE_READY};
+UART_HandleTypeDef huart3 = {&Rx_Dma, 0, 0, HAL_UART_RXEVENT_IDLE, HAL_UART_STATE_READY, HAL_UART_STATE_READY};
 uint32_t Test_Primask;
 static char Tx_Line[256];
 static unsigned Tx_Count;
+static uint8_t *Pending_Data;
+static uint16_t Pending_Size;
+static bool Start_Failure;
 static unsigned Rx_Start_Count;
 
 /**
@@ -23,6 +26,7 @@ extern "C" int HAL_UARTEx_ReceiveToIdle_DMA(UART_HandleTypeDef *Uart, uint8_t *D
 {
     Uart->rx_buffer = Data;
     Uart->rx_capacity = Size;
+    Uart->RxState = HAL_UART_STATE_BUSY_RX;
     ++Rx_Start_Count;
     return 0;
 }
@@ -35,25 +39,40 @@ extern "C" int HAL_UARTEx_ReceiveToIdle_DMA(UART_HandleTypeDef *Uart, uint8_t *D
 extern "C" int HAL_UART_AbortReceive(UART_HandleTypeDef *Uart)
 {
     Uart->rx_buffer = 0;
+    Uart->RxState = HAL_UART_STATE_READY;
     return 0;
 }
 
 /**
- * @brief 保存 FireWater 文本。
+ * @brief 保留 DMA 地址，延后读取数据以验证缓冲区寿命。
  * @param Uart 串口。
  * @param Data 数据。
  * @param Size 长度。
- * @param Timeout 超时。
- * @retval 0
+ * @retval HAL 启动结果
  */
-extern "C" int HAL_UART_Transmit(UART_HandleTypeDef *Uart, uint8_t *Data, uint16_t Size, uint32_t Timeout)
+extern "C" int HAL_UART_Transmit_DMA(UART_HandleTypeDef *Uart, uint8_t *Data, uint16_t Size)
 {
-    assert(Uart == &huart1 && Size < sizeof(Tx_Line) && Timeout > 0U);
-    assert(memchr(Data, '\0', Size) == 0);
-    memcpy(Tx_Line, Data, Size);
-    Tx_Line[Size] = '\0';
+    assert(Uart == &huart1 && Size < sizeof(Tx_Line));
+    if (Start_Failure) return -1;
+    assert(Uart->gState == HAL_UART_STATE_READY);
+    Pending_Data = Data;
+    Pending_Size = Size;
+    Uart->gState = HAL_UART_STATE_BUSY_TX;
     ++Tx_Count;
     return 0;
+}
+
+/** @brief 模拟最后一个停止位发送完成。@retval 无 */
+static void CompleteTransmit()
+{
+    assert(Pending_Data && BSP::UART1::IsBusy());
+    assert(memchr(Pending_Data, '\0', Pending_Size) == 0);
+    memcpy(Tx_Line, Pending_Data, Pending_Size);
+    Tx_Line[Pending_Size] = '\0';
+    Pending_Data = 0;
+    huart1.gState = HAL_UART_STATE_READY;
+    HAL_UART_TxCpltCallback(&huart1);
+    assert(!BSP::UART1::IsBusy());
 }
 
 /**
@@ -78,6 +97,7 @@ static void Feed(const char *Text)
     memcpy(huart1.rx_buffer, Text, Length);
     huart1.event = Length == huart1.rx_capacity ? HAL_UART_RXEVENT_TC : HAL_UART_RXEVENT_IDLE;
     unsigned Previous_Start_Count = Rx_Start_Count;
+    huart1.RxState = HAL_UART_STATE_READY;
     HAL_UARTEx_RxEventCallback(&huart1, (uint16_t)Length);
     assert(Rx_Start_Count == Previous_Start_Count + 1U);
 }
@@ -93,7 +113,22 @@ int main(void)
     assert(Vofa_Send(Channels, 3U) == VOFA_ARGUMENT);
     assert(Vofa_Init() == VOFA_OK);
     assert(Vofa_Send(Channels, 3U) == VOFA_OK);
+    assert(BSP::UART1::IsBusy());
+    const float Other[] = {99.0f};
+    assert(Vofa_Send(Other, 1U) == VOFA_UART_ERROR);
+    CompleteTransmit();
     assert(strcmp(Tx_Line, "1.25,-2,0\n") == 0);
+    uint8_t Source[] = {'o', 'k', '\n'};
+    assert(BSP::UART1::Transmit(Source, sizeof(Source)));
+    memset(Source, 'x', sizeof(Source));
+    CompleteTransmit();
+    assert(strcmp(Tx_Line, "ok\n") == 0);
+    Start_Failure = true;
+    assert(Vofa_Send(Channels, 3U) == VOFA_UART_ERROR);
+    assert(!BSP::UART1::IsBusy());
+    Start_Failure = false;
+    uint8_t Too_Long[257] = {0};
+    assert(!BSP::UART1::Transmit(Too_Long, sizeof(Too_Long)));
     unsigned Previous_Tx_Count = Tx_Count;
     const float Invalid_Channel[] = {NAN};
     assert(Vofa_Send(Invalid_Channel, 1U) == VOFA_ARGUMENT);

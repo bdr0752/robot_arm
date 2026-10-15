@@ -59,6 +59,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     bsp/Src/bsp_uart.cpp
     Controller/Src/PID.c
     Controller/Src/servo_speed_loop.c
+    Controller/Src/servo_angle_loop.c
     app/Src/vofa.cpp
 )
 

@@ -670,6 +670,11 @@
               <FilePath>../Controller/Src/servo_speed_loop.c</FilePath>
             </File>
             <File>
+              <FileName>servo_angle_loop.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Controller/Src/servo_angle_loop.c</FilePath>
+            </File>
+            <File>
               <FileName>PID.h</FileName>
               <FileType>5</FileType>
               <FilePath>../Controller/Inc/PID.h</FilePath>
@@ -678,6 +683,11 @@
               <FileName>servo_speed_loop.h</FileName>
               <FileType>5</FileType>
               <FilePath>../Controller/Inc/servo_speed_loop.h</FilePath>
+            </File>
+            <File>
+              <FileName>servo_angle_loop.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>../Controller/Inc/servo_angle_loop.h</FilePath>
             </File>
           </Files>
         </Group>

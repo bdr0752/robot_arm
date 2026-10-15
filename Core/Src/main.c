@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "bsp_board.h"
 #include "ft_Servo.h"
+#include "ft_servo_protocol.h"
 #include "stm32h7xx_hal.h"
 #include "stm32h7xx_hal_uart.h"
 #include "vofa.h"
@@ -64,6 +65,7 @@ const Struct_PID_Config *config = &(Struct_PID_Config){
     .K_P = 0.0f,
     .K_I = 0.0f,
     .K_D = 0.0f,
+    .K_F = 0.0f,
     .Out_Min = -1000.0f,
     .Out_Max = 1000.0f,
     .I_Out_Min = -500.0f,
@@ -81,10 +83,30 @@ ServoSpeedLoop *loop = &(ServoSpeedLoop){
 };
 
 float Channel[5] = {0};
-static volatile float target_speed = 0.0f;
+static volatile float target_speed = 25.0f;
 uint32_t time_now = 0.0f;
 uint32_t time_last = 0.0f;
+float Kp = 8.5f;
+float Ki = 2.5f;
+float Kd = 0.05f;
+float Kf = 9.0f;
+int16_t measured_speed = 0;
+int16_t pwm = 0;
+float error = 0.0f;
 
+float P_OUT = 0.0f;
+float I_OUT = 0.0f;
+float D_OUT = 0.0f;
+float F_OUT = 0.0f;
+
+
+
+/* 全局变量 */
+volatile FtServoResult ping_first, ping_second;
+uint8_t status_first = 0xFFU;
+uint8_t status_second = 0xFFU;
+
+FtServoResult read_result;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -242,6 +264,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
   /* 板级初始化配置 GPIO、DMA、USART3/USART1，并启动 C++ BSP 模块。 */
   Bsp_Board_Init();
+  
+//  ping_first  = ft_servo_ping(3U, &status_first);
+//  ping_second = ft_servo_ping(3U, &status_second);
 
 //  BspUartManager *Debug_Uart = Bsp_Board_DebugUart();
 //  Bsp_Uart_SetRxCallback(Debug_Uart, Vofa_RxCallback);
@@ -259,6 +284,8 @@ int main(void)
   
   uint8_t torque_status = 0xFFU;
   uint8_t pid_status = 0xFFU;
+  uint8_t pwm_status = 0xFFU;
+
   float D_T = 0.0f;
   
   /* 关闭扭矩 */
@@ -268,6 +295,12 @@ int main(void)
   /* 开启扭矩，开始输出 */
   r_torque = ft_servo_set_torque(loop->id, 1U, &torque_status);
   time_last = HAL_GetTick();
+//  uint8_t torque_value = 0xFFU;
+//  uint8_t read_status = 0xFFU;
+
+//    read_result = ft_servo_read_byte(
+//    loop->id, FT_SMS_REG_TORQUE_ENABLE,
+//    &torque_value, &read_status);
 
 
   /* USER CODE END 2 */
@@ -279,18 +312,32 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-    Channel[0] = (float)loop->measured_speed;
-    Channel[1] = (float)loop->pid.Config.K_P;
-    Channel[2] = (float)loop->pid.Config.K_I;
-    Channel[3] = (float)loop->pid.Config.K_D;
-    Channel[4] = target_speed;
+//    Channel[0] = (float)loop->measured_speed;
+//    Channel[1] = (float)loop->pid.Config.K_P;
+//    Channel[2] = (float)loop->pid.Config.K_I;
+//    Channel[3] = (float)loop->pid.Config.K_D;
+//    Channel[4] = target_speed;
     time_now = HAL_GetTick();
     D_T = (float)(time_now - time_last);
     if(D_T >= 10.0f){
       time_last = time_now;
       ServoSpeedLoop_Update(loop, target_speed, D_T / 1000.0f, &pid_status);
+      loop->pid.Config.K_P = Kp;
+      loop->pid.Config.K_I = Ki;
+      loop->pid.Config.K_D = Kd;
+      loop->pid.Config.K_F = Kf;
+      measured_speed = loop->measured_speed;
+      pwm = loop->pwm;
+      error = loop->pid.Error;
+      P_OUT = loop->pid.P_Out;
+      I_OUT = loop->pid.I_Out;
+      D_OUT = loop->pid.D_Out;
+      F_OUT = loop->pid.F_OUT;
+
+		
     }
 //    Vofa_Send(Channel, 5U);
+  //  ft_servo_write_pwm(loop->id, pwm, &pwm_status);
     
     
   }
